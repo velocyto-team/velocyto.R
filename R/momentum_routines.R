@@ -185,7 +185,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     if(!is.null(cell.emb)) {
       # show embedding heatmaps
       cc <- intersect(rownames(cell.emb),colnames(conv.emat.norm));
-      if(do.par) { par(mfrow=c(1,4), mar = c(2.5,2.5,2.5,1.5), mgp = c(1.5,0.65,0), cex = 0.85); }
+      if(do.par) { par(mfrow=c(1,4), mar = c(2.5,2.5,2.5,0.5), mgp = c(1.5,0.65,0), cex = 0.85); }
       plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.emat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'s'),axes=F); box();
       plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.nmat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'u'),axes=F); box();
     }

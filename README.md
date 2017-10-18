@@ -1,2 +1,2 @@
-# `velocyto.R`
-Code will be available very soon
+# velocyto.R
+RNA velocity estimation in R

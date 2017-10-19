@@ -30,7 +30,7 @@ NULL
 ##' @param kCells - number of k nearest neighbors (NN) to use in slope calculation smoothing
 ##' @param cellKNN - optional pre-calculated cell KNN matrix
 ##' @param kGenes - number of genes (k) to use in gene kNN pooling
-##' @param old.fit - optional old result (in this case the slopes and offsets won't be recalculated)
+##' @param old.fit - optional old result (in this case the slopes and offsets won't be recalculated, and the same kNN graphs will be used)
 ##' @param mult - library scaling factor (1e6 in case of FPM)
 ##' @param min.nmat.smat.correlation - minimum required Spearman rank correlation between n and s counts of a gene
 ##' @param min.nmat.emat.correlation - minimum required Spearman rank correlation between n and e counts of a gene
@@ -48,6 +48,18 @@ NULL
 ##' @param n.cores - number of cores to use
 ##' @param verbose - output messages about progress
 ##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
+##' @examples
+##' \dontrun{
+##'  # use min/max quantile gamma fit (recommended option when one can afford to do cell kNN smoothing)
+##'  # The example below uses k=5 cell kNN pooling, and top/bottom 2% exprssion quantiles
+##'  # emat and nmat are spliced (exonic) and unspliced (intronic) molecule/read count matirces (preferably filtered for informative genes)
+##'  rvel <- gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02)
+##'
+##'  # alternativly, the function can be used to visualize gamma fit and regression for a particular gene
+##'  # here we pass embedding (a matrix/data frame with rows named with cell names, and columns corresponding to the x/y coordinates)
+##'  # and cell colors. old.fit is used to save calculation time.
+##'  gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02,old.fit=rvel,show.gene='Chga',cell.emb=emb,cell.colors=cell.colors)
+##' }
 ##' @export
 gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady.state.cells=colnames(emat),kCells=10,cellKNN=NULL,kGenes=1,old.fit=NULL,mult=1e3,min.nmat.smat.correlation=0.05,min.nmat.emat.correlation=0.05, min.nmat.emat.slope=0.05, zero.offset=FALSE,deltaT2=1, fit.quantile=NULL, show.gene=NULL, do.par=TRUE, cell.dist=NULL, cell.emb=NULL, cell.colors=NULL, expression.gradient=NULL,residual.gradient=NULL, n.cores=defaultNCores(), verbose=TRUE) {
   if(!all(colnames(emat)==colnames(nmat))) stop("emat and nmat must have the same columns (cells)");
@@ -380,6 +392,11 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##' @param m.pcount - pseudocount to be used in M value calculations (defaults to 5)
 ##' @param n.cores - number of cores to use
 ##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
+##' @examples
+##' \dontrun{
+##'  # 
+##'  gvel <- gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02)
+##' }
 ##' @export
 global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, m.pcount=5,n.cores=defaultNCores()) {
   mult <- vel$mult; # use the same library scale as in the supplied relative velocity estimates

@@ -1,0 +1,5 @@
+set -x
+set -e
+
+mkdir inst/tmp
+cd inst/tmp/

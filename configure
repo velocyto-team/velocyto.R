@@ -1,8 +1,8 @@
 set -x
 set -e
 
-mkdir newtemp
-cd newtemp
+mkdir ~/newtemp
+cd ~/newtemp
 
 # Download binary
 curl -O http://r.research.att.com/libs/clang-4.0.0-darwin15.6-Release.tar.gz

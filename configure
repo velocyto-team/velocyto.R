@@ -1,13 +1,7 @@
 set -x
 set -e
 
-mkdir ~/newtemp
-cd ~/newtemp
-
-# Download binary
-curl -O http://r.research.att.com/libs/clang-4.0.0-darwin15.6-Release.tar.gz
-# Extract binary onto root directory. sudo i know :/ but... 
-sudo tar fvxz clang-4.0.0-darwin15.6-Release.tar.gz -C /
+brew install llvm
 
 # Overwrite the ~/.R/Makevars
 cat <<- EOF > ~/.R/Makevars

@@ -1,5 +1,5 @@
 set -x
 set -e
 
-mkdir inst/tmp/
-cd inst/tmp/
+mkdir /inst/tmp/
+cd /inst/tmp/

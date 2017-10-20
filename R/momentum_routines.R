@@ -394,8 +394,13 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
 ##' @examples
 ##' \dontrun{
-##'  # 
-##'  gvel <- gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02)
+##'  # emat / nmat are the spliced/unpsliced matrices respectively
+##'  # rvel is a gene-relative velocity estimate
+##'  # base.df (here dat$base.df) is a gene information table.
+##'  #   For SMART-seq2, it is part of the \code{\link{read.smartseq2.bams}} output.
+##'  #   For droplet data, this info can be obtained \code{\link{}}
+##'  gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5, kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
+##'  
 ##' }
 ##' @export
 global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, m.pcount=5,n.cores=defaultNCores()) {
@@ -1043,8 +1048,8 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   }
   
   cat("distance ... ")
-  cc <- colEuclid(em,as.matrix(emn))
-  cc0 <- colEuclid(em,em)
+  cc <- colEuclid(as.matrix(em),as.matrix(emn))
+  cc0 <- colEuclid(as.matrix(em),as.matrix(em))
   cd <- (cc0-cc); # reduction in the Euclidean distance
 
   if(n>nrow(cc)) { n <- nrow(cc) }

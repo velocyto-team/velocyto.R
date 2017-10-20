@@ -2,7 +2,7 @@ set -x
 set -e
 
 brew install llvm
-
+mkdir -p ~/.R
 # Overwrite the ~/.R/Makevars
 cat <<- EOF > ~/.R/Makevars
 # The following statements are required to use the clang4 binary

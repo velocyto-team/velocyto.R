@@ -7,6 +7,7 @@ The easiest way to install velocyto.R is using devtools::install_github() from R
 library(devtools)
 install_github("velocyto-team/velocyto.R")
 ```
+You need to have boost (i.g. `sudo apt-get install libboost-dev`) and openmp libraries installed.
 
 ## Tutorials
 

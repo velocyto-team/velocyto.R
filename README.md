@@ -15,3 +15,6 @@ The example shows how to annotate SMART-seq2 reads from bam file and estimate RN
 
 ### [Dentate Gyrus / loom](http://pklab.med.harvard.edu/velocyto/notebooks/R/DG1.nb.html)
 The example shows how to load spliced/unspliced matrices from loom files prepared by [velocyto.py CLI](http://velocyto.org/velocyto.py/tutorial/index.html#running-the-cli), use [pagoda2](https://github.com/hms-dbmi/pagoda2) to cluster/embed cells, and then visualize RNA velocity on that embedding.
+
+### [Mouse BM / dropEst](http://pklab.med.harvard.edu/velocyto/notebooks/R/SCG71.nb.html)
+This example shows how to start analysis using dropEst count matrices, which can calculated from inDrop or 10x bam files using [dropEst pipeline](https://github.com/hms-dbmi/dropEst/). It then uses [pagoda2](https://github.com/hms-dbmi/pagoda2) to cluster/embed cells, and then visualize RNA velocity on that embedding.

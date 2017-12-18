@@ -39,7 +39,3 @@ case "$(uname -s)" in
      echo 'other OS' 
      ;;
 esac
-
-if [ "$(uname)" == "Darwin" ]; then
-
-fi

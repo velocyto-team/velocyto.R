@@ -550,13 +550,24 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
 ##' @param min.max.cluster.average required minimum average expression count (no normalization is perfomed)
 ##' @return filtered emat matrix
 ##' @export
-filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.average=0.1) {
+filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.average=0.1,do.preview=FALSE) {
   if(!any(colnames(emat) %in% names(clusters))) stop("provided clusters do not cover any of the emat cells!")
   vc <- intersect(colnames(emat),names(clusters))
   cl.emax <- apply(do.call(cbind,tapply(vc,as.factor(clusters[vc]),function(ii) Matrix::rowMeans(emat[,ii]))),1,max)
   vi <- cl.emax>min.max.cluster.average;
+
+  if (do.preview){
+    plot(density(cl.emax), xlab='Max Cluster-Avg', main='')
+    abline(v=quantile(cl.emax), col='blue', lty='dashed')
+    abline(v=min.max.cluster.average, col='maroon', lty='dashed')
+    axis(side=3, at=quantile(cl.emax), labels=round(quantile(cl.emax), 2),
+         col.ticks='blue')
+    message(paste0(length(which(vi)), '/', length(cl.emax), ' genes are selected.'))
+  }
+
   emat[vi,]
 }
+
 
 ##' PCA-based visualization of the velocities
 ##'

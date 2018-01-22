@@ -557,13 +557,14 @@ filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.ave
   vi <- cl.emax>min.max.cluster.average;
 
   if (do.preview){
-    print(summary(quantile(cl.emax)))
-    plot(density(cl.emax), xlab='Max Cluster-Avg', main='')
+    msg <- paste0(length(which(vi)), '/', length(cl.emax), ' genes are selected')
+    plot(density(cl.emax), xlab='Max Cluster-Avg', main=msg)
     abline(v=quantile(cl.emax), col='blue', lty='dashed')
     abline(v=min.max.cluster.average, col='maroon', lty='dashed')
     axis(side=3, at=quantile(cl.emax), labels=round(quantile(cl.emax), 2),
          col.ticks='blue')
-    print(paste0(length(which(vi)), '/', length(cl.emax), ' genes are selected.'))
+    print(summary(cl.emax))
+    print(msg)
   }
 
   emat[vi,]

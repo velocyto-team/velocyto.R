@@ -17,14 +17,14 @@ arma::sp_mat  balanced_knn(const arma::mat& d,int k,int maxl,bool returnDistance
     dsi.col(i)=si;
     l.elem(si.subvec(0,k-1))+=1;
   }
-  
+
   arma::uvec lsi=sort_index(l,"descend"); // greedy order of column considerations
   l.zeros(); // reset so that l can be used to keep track of reciprocal counts in the kNN being constucted
   // greedy knn (construct row index vector)
   arma::uvec rowind(k*d.n_cols);
   arma::vec vals(k*d.n_cols,arma::fill::zeros); // values
   vals+=1.0; // default to ones
-            
+
   // run regular knn, record number of reciprocal neighbors
   for(int i=0;i<d.n_cols;i++) {
     int el=lsi[i]; // element for which the neighbors are being found
@@ -39,24 +39,24 @@ arma::sp_mat  balanced_knn(const arma::mat& d,int k,int maxl,bool returnDistance
       rowind[el*k+p]=m; l[m]++; p++; // record neighbor
       if(returnDistanceValues) { vals[el*k+p]=d(m,el); }
     }
-    if(j==dsi.n_rows && p<k) { 
-      rowind[el*k+p]=el; p++; // fill in last element(s) with self-identity if there were not enough spare elements 
+    if(j==dsi.n_rows && p<k) {
+      rowind[el*k+p]=el; p++; // fill in last element(s) with self-identity if there were not enough spare elements
       while(p<k) {
-	std::stringstream es; 
+	std::stringstream es;
 	es<<"unable to find unfilled neighbors for i="<<i<<" el="<<el<<" p="<<p;
-	Rf_warning(es.str().c_str()); 
+	Rf_warning(es.str().c_str());
 	rowind[el*k+p]=el; p++;
       }
     }
   }
-            
+
 
   // construct a column pointer index - every coulmn has only k entries, so its easy
 
   arma::uvec colptr(d.n_cols+1);
   int cc=0;
   for(int i=0;i<colptr.n_elem;i++) { colptr[i]=cc; cc+=k; }
-  // make return matrix  
+  // make return matrix
   arma::sp_mat knn(rowind,colptr,vals,d.n_rows,d.n_cols); // kNN matrix
   return(knn);
 }
@@ -77,7 +77,7 @@ arma::mat  colDeltaCor(const arma::mat& e, const arma::mat& d, int nthreads=1) {
     arma::mat t(e); t.each_col() -= e.col(i);
     rm.col(i)=cor(t,d.col(i));
   }
-      
+
   return(rm);
 }
 
@@ -90,7 +90,7 @@ arma::mat  colDeltaCorSqrt(const arma::mat& e, const arma::mat& d, int nthreads=
     t=sqrt(abs(t)) % sign(t);
     rm.col(i)=cor(t,d.col(i));
   }
-      
+
   return(rm);
 }
 
@@ -103,7 +103,7 @@ arma::mat  colDeltaCorLog10(const arma::mat& e, const arma::mat& d, double pseud
     t=log10(abs(t)+pseudocount) % sign(t);
     rm.col(i)=cor(t,d.col(i));
   }
-      
+
   return(rm);
 }
 
@@ -112,7 +112,7 @@ arma::mat  colDeltaCorLog10(const arma::mat& e, const arma::mat& d, double pseud
 // [[Rcpp::export]]
 arma::mat  colEuclid(const arma::mat& e, const arma::mat& p, int nthreads=1) {
   arma::mat rm(e.n_cols,e.n_cols);
-  
+
 #pragma omp parallel for shared(rm) num_threads(nthreads)
   for(int i=0;i<e.n_cols;i++) {
     arma::mat t(e); t.each_col() -= p.col(i);
@@ -131,7 +131,7 @@ arma::mat  embArrows(const arma::mat& emb, const arma::mat& tp, double arrowScal
 
   arma::mat dm(emb.n_cols,emb.n_rows);
   arma::mat tpb(ceil(tp)); // binarized version to give equal weights to each cell in the neighborhood
-  tpb.each_row() /= sum(tpb,0); // normalize 
+  tpb.each_row() /= sum(tpb,0); // normalize
   arma::colvec zv(emb.n_cols,arma::fill::zeros);
   arma::mat temb=trans(emb);
 #pragma omp parallel for shared(dm) num_threads(nthreads)

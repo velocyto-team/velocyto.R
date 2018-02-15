@@ -198,8 +198,8 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       # show embedding heatmaps
       cc <- intersect(rownames(cell.emb),colnames(conv.emat.norm));
       if(do.par) { par(mfrow=c(1,4), mar = c(2.5,2.5,2.5,0.5), mgp = c(1.5,0.65,0), cex = 0.85); }
-      plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.emat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'s'),axes=F); box();
-      plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.nmat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'u'),axes=F); box();
+      plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.emat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'s'),axes=F); box();
+      plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.nmat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'u'),axes=F); box();
     }
     do <- NULL;
     if(!is.null(smat)) { # use smat-based offsets
@@ -250,7 +250,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     lines(df$e,predict(d,newdata=df),lty=2,col=2)
 
     if(!is.null(cell.emb)) {
-      plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(resid(d)[cc],gradientPalette=residual.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'resid'),axes=F); box();
+      plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(resid(d)[cc],gradientPalette=residual.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'resid'),axes=F); box();
     }
     if(kGenes>1) { return(invisible(geneKNN)) } else { return(1) }
   }

@@ -3,7 +3,7 @@ set -e
 
 brew install llvm
 brew install boost
-brew install homebrew/science/hdf5 --enable-cxx
+brew install hdf5 --enable-cxx
 mkdir -p ~/.R
 # Overwrite the ~/.R/Makevars
 cat <<- EOF > ~/.R/Makevars

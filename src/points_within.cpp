@@ -21,14 +21,14 @@ SEXP points_within2(SEXP x_R,SEXP se_R,SEXP fi_R,SEXP return_list_R,SEXP return_
   int* se=INTEGER(se_R);
   int* fi=INTEGER(fi_R);
   int nf=LENGTH(se_R);
-            
+
   int return_list=*(INTEGER(return_list_R));
   int return_unique=*(INTEGER(return_unique_R));
   int return_point_counts=*(INTEGER(return_point_counts_R));
 
   set<int> fset;
-            
-            
+
+
   SEXP nv; int *i_nv;
   int np=0;
   if(return_point_counts) {
@@ -41,7 +41,7 @@ SEXP points_within2(SEXP x_R,SEXP se_R,SEXP fi_R,SEXP return_list_R,SEXP return_
     PROTECT(nv=allocVector(INTSXP,nx));  np++;
     i_nv=INTEGER(nv);
   }
-            
+
   int j=0;
   for(int i=0;i<nx;i++) {
     // advance j
@@ -49,7 +49,7 @@ SEXP points_within2(SEXP x_R,SEXP se_R,SEXP fi_R,SEXP return_list_R,SEXP return_
       int frag=fi[j];
       if(frag>0) { // insert
 	fset.insert(frag);
-            
+
       } else { // remove
 	fset.erase(-frag);
 
@@ -85,7 +85,7 @@ SEXP points_within2(SEXP x_R,SEXP se_R,SEXP fi_R,SEXP return_list_R,SEXP return_
       }
     }
   }
-            
+
   UNPROTECT(np);
   return nv;
 }

@@ -4,6 +4,7 @@
 
 #include <RcppArmadillo.h>
 using namespace Rcpp;
+using namespace std;
 
 // given a distance matrix, form balanced kNN assignment using greedy approach
 // [[Rcpp::export]]
@@ -124,14 +125,22 @@ arma::mat  colEuclid(const arma::mat& e, const arma::mat& p, int nthreads=1) {
 }
 
 
+
 // calculates arrows on a provided embedding (emb) given cell-cell transition probabilities (tp)
 // returns arrow deltas
 // [[Rcpp::export]]
-arma::mat  embArrows(const arma::mat& emb, const arma::mat& tp, double arrowScale=1.0, int nthreads=1) {
-
+arma::mat  embArrows(const arma::mat& emb, const arma::sp_mat& tp, double arrowScale=1.0, int nthreads=1) {
   arma::mat dm(emb.n_cols,emb.n_rows);
-  arma::mat tpb(ceil(tp)); // binarized version to give equal weights to each cell in the neighborhood
-  tpb.each_row() /= sum(tpb,0); // normalize 
+  arma::sp_mat tpb(tp); // make binarized version to give equal weights to each cell in the neighborhood
+  arma::vec tprs(tp.n_cols,arma::fill::zeros);
+  arma::sp_mat::iterator ei=tpb.end();
+  for(arma::sp_mat::iterator ci=tpb.begin(); ci!=ei; ++ci) {
+    tprs[ci.col()]++; 
+  }
+  for(arma::sp_mat::iterator ci=tpb.begin(); ci!=ei; ++ci) {
+    (*ci)=1.0/tprs[ci.col()];
+  }
+
   arma::colvec zv(emb.n_cols,arma::fill::zeros);
   arma::mat temb=trans(emb);
 #pragma omp parallel for shared(dm) num_threads(nthreads)
@@ -144,4 +153,23 @@ arma::mat  embArrows(const arma::mat& emb, const arma::mat& tp, double arrowScal
     dm.col(i)=ds;
   }
   return(dm);
+}
+
+// based on the transition probabilities to each cell, and the diference of expression between them calculates the expected 
+// scale 1- linear; 2-sqrt; 3 log
+// [[Rcpp::export]]
+arma::mat  expectedExpressionShift(const arma::mat& e, const arma::sp_mat& tp, int scale=1, double pseudocount=1.0, int nthreads=1) {
+  arma::mat rm(e.n_rows,e.n_cols);
+#pragma omp parallel for shared(rm) num_threads(nthreads)
+  for(int i=0;i<e.n_cols;i++) {
+    arma::mat t(e); t.each_col() -= e.col(i);
+    if(scale==2) { 
+      t=sqrt(abs(t)) % sign(t);
+    } else if(scale==3) {
+      t=log10(abs(t)+pseudocount) % sign(t);
+    }
+    rm.col(i)= t*tp.col(i);
+  }
+      
+  return(rm);
 }

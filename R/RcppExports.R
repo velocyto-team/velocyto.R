@@ -33,3 +33,7 @@ embArrows <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
     .Call('_velocyto_R_embArrows', PACKAGE = 'velocyto.R', emb, tp, arrowScale, nthreads)
 }
 
+expectedExpressionShift <- function(e, tp, scale = 1L, pseudocount = 1.0, nthreads = 1L) {
+    .Call('_velocyto_R_expectedExpressionShift', PACKAGE = 'velocyto.R', e, tp, scale, pseudocount, nthreads)
+}
+

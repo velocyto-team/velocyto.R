@@ -1377,10 +1377,14 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
 ##' @param bam.files list of bam files
 ##' @param annotation.file refFlat genome annotation file (use gtfToGenePred to generate refFlat file from gtf)
 ##' @param min.exon.count minimum number of reads (across all cells) for an exon to be considered expressed in the dataset
+##' @param stream.bams should the bams be loaded one at a time (slower) or all at once (uses more memory)?
 ##' @param n.cores
 ##' @return
 ##' @export
-read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.cores=defaultNCores()) {
+read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,stream.bams=FALSE,n.cores=defaultNCores()) {
+  if (is.null(names(bam.files))) {
+    stop("The 'bam.files' vector must be named in order to define cell names")
+  }
   # read in annotation
   # TODO: enable direct gtf read
   cat("reading gene annotation ... ")
@@ -1421,7 +1425,7 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
   # read in all bam files
   cat("reading in",length(bam.files),"bam files ... ")
   # annotate individual reads
-  cdl <- parallel::mclapply(bam.files,t.annotate.bam.reads,genes=genes,exons=exons,margin=1,exon.margin=1,mc.cores=n.cores)
+  cdl <- parallel::mclapply(bam.files,t.annotate.bam.reads,genes=genes,exons=exons,margin=1,exon.margin=1,mc.cores=n.cores,mc.preschedule=!stream.bams)
   cat("done\n")
   # get count estimates per gene
   cat("estimating gene counts ... ")
@@ -1564,6 +1568,7 @@ t.annotate.bam.reads <- function(fname, genes, exons, chrl=unique(genes$chr), te
   if(use.names) {
     bam.data$name <- names(z)
   }
+  rm(z)
   bam.data <- bam.data[bam.data$chr %in% chrl,]
 
   chrl <- chrl[chrl %in% unique(bam.data$chr)]

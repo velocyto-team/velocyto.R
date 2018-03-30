@@ -101,14 +101,14 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
   
   emat.log.norm <- log(as.matrix(t(t(emat)/emat.cs))+pcount);
   if(!is.null(old.fit)) { cellKNN <- old.fit[['cellKNN']]}
-  
+  knn.maxl <- 1e2
   if(kCells>1) {
     if(is.null(cellKNN)) {
       cat("calculating cell knn ... ")
       if(is.null(cell.dist)) {
-        cellKNN <- balancedKNN(emat.log.norm,kCells,kCells*1.2e2,n.threads=n.cores);
+        cellKNN <- balancedKNN(emat.log.norm,kCells,kCells*knn.maxl,n.threads=n.cores);
       } else {
-        cellKNN <- balancedKNN(emat.log.norm,kCells,kCells*1.2e2,n.threads=n.cores,dist=cell.dist);
+        cellKNN <- balancedKNN(emat.log.norm,kCells,kCells*knn.maxl,n.threads=n.cores,dist=cell.dist);
       }
       diag(cellKNN) <- 1;
       resl$cellKNN <- cellKNN;
@@ -209,14 +209,16 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       df <- data.frame(n=(conv.nmat.norm[gn,steady.state.cells]),e=(conv.emat.norm[gn,steady.state.cells]))
       o <- 0;
       df$o <- o;
-      zi <- emat[gn,steady.state.cells]==0;
+      #zi <- emat[gn,steady.state.cells]==0;
+      if(!zero.offset) { zi <- df$e<1/conv.emat.cs[steady.state.cells]; if(any(zi)) { o <- sum(df$n[zi])/(sum(zi)+1)} }
+      df$o <- o;
       
       #table(zi)
-      if(any(zi)) {
-        do <- lm(n~e,data=df[zi,])
-        #summary(do)
-        df$o <- max(0,do$coefficients[1])
-      }
+      # if(any(zi)) {
+      #   do <- lm(n~e,data=df[zi,])
+      #   #summary(do)
+      #   df$o <- max(0,do$coefficients[1])
+      # }
 
       
     }
@@ -343,7 +345,8 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     deltaE <- t.get.projected.delta.from.log2ratio(em=conv.emat.norm,gamma=gamma,r=mval,delta=deltaT)
     #deltaE <- t.get.projected.delta2(conv.emat.norm,conv.nmat,conv.nmat.cs,gamma,offset=offset,delta=deltaT)
   } else { # regular estimation
-    deltaE <- t.get.projected.delta2(conv.emat.norm,conv.nmat,conv.nmat.cs,gamma,offset=offset,delta=deltaT)
+    #deltaE <- t.get.projected.delta2(conv.emat.norm,conv.nmat,conv.nmat.cs,gamma,offset=offset,delta=deltaT)
+    deltaE <- t.get.projected.delta(conv.emat.norm,conv.nmat.norm,gamma,offset=offset,delta=deltaT)
   }
 
   resl$gamma <- gamma;
@@ -354,11 +357,16 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
  
   # reduced cell normalization (only genes for which momentum was estimated)
   emat.norm <- emat[rownames(emat) %in% rownames(deltaE),]
-  emat.size <- Matrix::colSums(emat.norm)/mult;
-  emat.norm <- t(t(emat.norm)/(emat.size));
+  #emat.sz <- Matrix::colSums(emat.norm)/mult;
+  #browser()
+  emat.sz <- emat.cs;
+  emat.norm <- t(t(emat.norm)/(emat.sz));
   
-  emn <- t.get.projected.cell2(emat.norm,emat.size,as.matrix(deltaE),mult = mult,delta=deltaT2);
+  emn <- t.get.projected.cell2(emat.norm,emat.sz,as.matrix(deltaE),mult = mult,delta=deltaT2);
   #emn <- t.get.projected.cell(emat.norm,as.matrix(deltaE),target.mult = mult,model.mult=mult,delta=deltaT2,size.normalize=FALSE);
+  
+  #table(emat.norm[,cn]==0)
+  #table(emn[,cn]==0)
   
   cat("done\n")
   full.ko$valid <- rownames(full.ko) %in% rownames(ko)
@@ -571,7 +579,7 @@ filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.ave
 ##' @param show.grid.flow whether a grid flow should be shown
 ##' @param grid.n number of grid points (on each axis)
 ##' @param grid.sd standard deviation of the grid
-##' @param grid.arrow.scale scale multiplier for the grid group velocity estimates
+##' @param arrow.scale scale multiplier for the velocity estimates
 ##' @param min.grid.cell.mass minimum cellular mass
 ##' @param pcount 
 ##' @param arrow.lwd 
@@ -579,7 +587,7 @@ filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.ave
 ##' @param ... 
 ##' @return 
 ##' @export
-pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=min(3,nPcs-1),norm.nPcs=NA,do.par=T, pc.multipliers=NULL, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, grid.arrow.scale=0.5, min.grid.cell.mass=1, min.arrow.size=NULL, pcount=1, arrow.lwd=1, size.norm=FALSE, return.details=FALSE, plot.grid.points=FALSE, fixed.arrow.length=FALSE,max.grid.arrow.length=NULL, n.cores=defaultNCores(), ...) {
+pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=min(3,nPcs-1),norm.nPcs=NA,do.par=T, pc.multipliers=NULL, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, arrow.scale=1, min.grid.cell.mass=1, min.arrow.size=NULL, pcount=1, arrow.lwd=1, size.norm=FALSE, return.details=FALSE, plot.grid.points=FALSE, fixed.arrow.length=FALSE,max.grid.arrow.length=NULL, n.cores=defaultNCores(), ...) {
   x0 <- vel$current;
   x1 <- vel$projected;
   if(is.null(cell.colors)) { cell.colors <- adjustcolor(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
@@ -620,10 +628,37 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   
   # normalize velocities ...?
   cat("delta norm ... ")
-  delta.pcs <- x1.scores-epc@scores
+  delta.pcs <- as.matrix(x1.scores-epc@scores)
   if(!is.na(norm.nPcs)) {
     delta.pcs <- delta.pcs/mean(sqrt(rowSums(delta.pcs^2))) # suggested by Gioele, unsure about this ....
   }
+  
+  # browser()
+  # z <- as.matrix(t(x1.log-x0.log)) %*% epc@loadings
+  # 
+  # hist(apply(vel$deltaE,2,mean))
+  # summary(apply(vel$deltaE,2,mean))
+  # hist(apply(as.matrix(x1.log-x0.log),2,mean))
+  # summary(apply(as.matrix(x1.log-x0.log),2,mean))
+  # 
+  # z <- t(as.matrix(vel$deltaE)[rownames(epc@loadings),]) %*%  epc@loadings
+  # str(z)
+  # str(delta.pcs)
+  # cn <- 'L6'
+  # cn <- 'O15'
+  # z <- (x1.log-x0.log)[,cn] * epc@loadings[,3]
+  # z2 <- vel$deltaE[names(z),cn] * epc@loadings[,3]
+  # sort(z,d=T)[1:20]
+  # sum(z)
+  # delta.pcs[cn,3]
+  # summary(delta.pcs[,3])
+  # str(epc@loadings[,3])
+  # sort(delta.pcs[,3],d=T)[1:10]
+  # z <- rowMeans(x1.log-x0.log) * epc@loadings[,3]
+  #summary(z)
+  #sort(z,d=T)[1:10]
+
+  delta.pcs <- delta.pcs *arrow.scale;
   cat("done\n")
   if(do.par) par(mfrow=c(ceiling((nPcs-1)/plot.cols),plot.cols), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
   vinfo <- lapply(1:(nPcs-1),function(i) {
@@ -693,10 +728,10 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         # calculate expression shift
         cat("expression shifts .")
         # for individual cells
-        es <- as.matrix(epc@loadings %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
+        es <- as.matrix(epc@loadings[,c((i-1)+1,(i-1)+2)] %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
         
         cat(".");
-        gs <- epc@loadings %*% rbind(garrows[,3]-garrows[,1],garrows[,4]-garrows[,2])
+        gs <- epc@loadings[,c((i-1)+1,(i-1)+2)] %*% rbind(garrows[,3]-garrows[,1],garrows[,4]-garrows[,2])
 
         # note: here we're using deltaE vector, which may be normalized a bit differently from the $current/$projectted that was used above
         nd <- as.matrix(vel$deltaE)
@@ -727,7 +762,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         },mc.cores=n.cores,mc.preschedule=T))
         cat(". done\n")
         
-        return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos)))
+        return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos,epc=epc)))
       }
       
     } else {
@@ -906,7 +941,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',plot.cols=3,do.p
 ##' @param ... 
 ##' @return 
 ##' @export
-show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.sigma=0.05, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, min.grid.cell.mass=1, min.arrow.size=NULL, arrow.scale=1, max.grid.arrow.length=NULL, fixed.arrow.length=FALSE, plot.grid.points=FALSE, scale='log', nPcs=NA,  arrow.lwd=1, xlab="", ylab="", n.cores=defaultNCores(), do.par=T, show.cell=NULL, cell.border.alpha=0.3, diffusion.steps=10,cc=NULL, return.details=FALSE, randomize=FALSE, ...) {
+show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.sigma=0.05, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, min.grid.cell.mass=1, min.arrow.size=NULL, arrow.scale=1, max.grid.arrow.length=NULL, fixed.arrow.length=FALSE, plot.grid.points=FALSE, scale='log', nPcs=NA,  arrow.lwd=1, xlab="", ylab="", n.cores=defaultNCores(), do.par=T, show.cell=NULL, cell.border.alpha=0.3, diffusion.steps=10,cc=NULL, return.details=FALSE, expression.scaling=FALSE, randomize=FALSE, ...) {
   if(do.par) par(mfrow=c(1,1), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
   celcol <- 'white'
   if(is.null(show.cell)) { celcol <- cell.colors[rownames(emb)] }
@@ -972,22 +1007,39 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.si
     dir <- Matrix::colSums(di*tp[,i]) 
     dic <- Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0)); # relative to expected kNN center
     dia <- dir-dic;
+    #browser()
     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+dic[1],emb[colnames(em)[i],2]+dic[2],length=0.05,lwd=1,col='blue'))
     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+dir[1],emb[colnames(em)[i],2]+dir[2],length=0.05,lwd=1,col='red'))
     suppressWarnings(arrows(emb[colnames(em)[i],1]+dic[1],emb[colnames(em)[i],2]+dic[2],emb[colnames(em)[i],1]+dir[1],emb[colnames(em)[i],2]+dir[2],length=0.05,lwd=1,lty=1,col='grey50'))
     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+dia[1],emb[colnames(em)[i],2]+dia[2],length=0.05,lwd=1,col='black'))
-  } else if(show.grid.flow) { # show grid summary of the arrows
+  } else {
     # arrow estimates for each cell
-
     cat("calculating arrows ... ")
     arsd <- data.frame(t(embArrows(emb,tp,arrow.scale,n.cores)))
     rownames(arsd) <- rownames(emb);
-
+    
+    if(expression.scaling) {
+      tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb));
+      es <- as.matrix(em %*% tp) -as.matrix(em %*% as.matrix(tpb));
+      # project velocity onto expression shift
+      #pm <- as.matrix(t(vel$deltaE)/sqrt(colSums(vel$deltaE*vel$deltaE)))[colnames(es),] * (t(es)/sqrt(colSums(es*es)))
+      #pl <- pmax(0,apply(pm,1,sum))
+      pl <- pmin(1,pmax(0,apply(as.matrix(vel$deltaE[,colnames(es)]) * es, 2, sum)/sqrt(colSums(es*es))))
+      
+      
+      arsd <- arsd * pl;
+    }
+    
+    
     ars <- data.frame(cbind(emb,emb+arsd));
     colnames(ars) <- c('x0','y0','x1','y1')
     colnames(arsd) <- c('xd','yd')
     rownames(ars) <- rownames(emb);
+    cat("done\n")
     
+    
+    if(show.grid.flow) { # show grid summary of the arrows
+
     # set up a grid
     cat("grid estimates ... ")
     rx <- range(c(range(ars$x0),range(ars$x1)))
@@ -1046,9 +1098,11 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.si
       
       scale.int <- switch(scale,'log'=2,'sqrt'=3,1)
       #es <- expectedExpressionShift(e=as.matrix(em),tp=tp,scale=scale.int,nthreads=n.cores); colnames(es) <- colnames(em); rownames(es) <- rownames(em);
-      tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb));
-      #es <- expectedExpressionShift(e=as.matrix(em %*% as.matrix(tpb)),tp=tp,scale=scale.int,nthreads=n.cores); colnames(es) <- colnames(em); rownames(es) <- rownames(em);
-      es <- as.matrix(em %*% tp) -as.matrix(em %*% as.matrix(tpb));
+      if(!expression.scaling) { #otherwise it has already been calculated
+        tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb));
+        #es <- expectedExpressionShift(e=as.matrix(em %*% as.matrix(tpb)),tp=tp,scale=scale.int,nthreads=n.cores); colnames(es) <- colnames(em); rownames(es) <- rownames(em);
+        es <- as.matrix(em %*% tp) -as.matrix(em %*% as.matrix(tpb));
+      }
       cat(".");
       # for the grid
       gs <- do.call(cbind,parallel::mclapply(gx,function(x) {
@@ -1096,25 +1150,37 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.si
       
       return(invisible(list(tp=tp,cc=cc,garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale)))
     }
-
-
     
     
-  } else {
-    # calculate arrows, draw
-    lapply(1:nrow(emb),function(i) {
-      # normalized directions to each point
-      di <- t(t(emb)-emb[i,])
-      di <- di/sqrt(Matrix::rowSums(di^2))*arrow.scale; di[i,] <- 0;
-      di <- Matrix::colSums(di*tp[,i]) - Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0)); # relative to expected kNN center
+    
+    
+    } else { # draw individual arrows
+      # calculate arrows, draw
+      # lapply(1:nrow(emb),function(i) {
+      #   # normalized directions to each point
+      #   di <- t(t(emb)-emb[i,])
+      #   di <- di/sqrt(Matrix::rowSums(di^2))*arrow.scale; di[i,] <- 0;
+      #   di <- Matrix::colSums(di*tp[,i]) - Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0)); # relative to expected kNN center
+      #   
+      #   if(fixed.arrow.length) {
+      #     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+di[1],emb[colnames(em)[i],2]+di[2],length=0.05,lwd=arrow.lwd))
+      #   } else {
+      #     ali <- sqrt( (di[1] * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + (di[2]*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2)
+      #     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+di[1],emb[colnames(em)[i],2]+di[2],length=min(0.05,ali),lwd=arrow.lwd))
+      #   }
+      # })
       
-      if(fixed.arrow.length) {
-        suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+di[1],emb[colnames(em)[i],2]+di[2],length=0.05,lwd=arrow.lwd))
-      } else {
-        ali <- sqrt( (di[1] * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + (di[2]*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2)
-        suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+di[1],emb[colnames(em)[i],2]+di[2],length=min(0.05,ali),lwd=arrow.lwd))
-      }
-    })
+      apply(ars,1,function(x) {
+        if(fixed.arrow.length) {
+          suppressWarnings(arrows(x[1],x[2],x[3],x[4],length=0.05,lwd=arrow.lwd))
+        } else {
+          ali <- sqrt( ((x[3]-x[1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((x[4]-x[2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2)
+          suppressWarnings(arrows(x[1],x[2],x[3],x[4],length=min(0.05,ali),lwd=arrow.lwd))
+        }
+      })
+      
+      
+    }
   }
   return(invisible(list(tp=tp,cc=cc)))
 }

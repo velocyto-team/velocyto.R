@@ -3,6 +3,7 @@ RNA velocity estimation in R
 
 ## System requirements
 velocyto.R can be installed on unix-flavored systems, and requires the following key elements:
+
 *. C++11
 *. Open MP support
 *. boost libaries

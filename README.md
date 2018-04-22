@@ -4,11 +4,11 @@ RNA velocity estimation in R
 ## System requirements
 velocyto.R can be installed on unix-flavored systems, and requires the following key elements:
 
-*. C++11
-*. Open MP support
-*. boost libaries
-*. igraph library
-*. h5c++ library (as required by the h5 R package to support loom files)
+* C++11
+* Open MP support
+* boost libaries
+* igraph library
+* h5c++ library (as required by the h5 R package to support loom files)
 
 ## Installation
 The easiest way to install velocyto.R is using devtools::install_github() from R:

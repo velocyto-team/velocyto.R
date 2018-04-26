@@ -1,13 +1,16 @@
 #' @useDynLib velocyto.R
 #' @import MASS
-#' @import Matrix
-#' @importFrom Matrix colSums
-#' @importFrom Matrix rowSums
+#' @import stats
+#' @import graphics
+#' @importFrom Matrix colSums rowSums spMatrix Diagonal
+#' @importFrom utils read.delim
 #' @importFrom pcaMethods pca
 #' @importFrom mgcv gam s
 #' @importFrom parallel mclapply
-#' @importFrom Rcpp evalCpp
 #' @importFrom cluster pam
+#' @importFrom Rcpp evalCpp
+#' @importFrom grDevices adjustcolor colorRampPalette
+
 NULL
 
 # optional imports
@@ -41,24 +44,30 @@ NULL
 ##' @param show.gene an optional name of a gene for which the velocity estimation details should be shown (instead of estimating all velocities)
 ##' @param do.par whether the graphical device parameters should be reset as part of show.gene (default=TRUE)
 ##' @param cell.dist - cell distance to use in cell kNN pooling calculations
+##' @param emat.size - pre-calculated cell sizes for the emat (spliced) matrix
+##' @param nmat.size - pre-calculated cell sizes for the nmat (unspliced) matrix
 ##' @param cell.emb - cell embedding to be used in show.gene function
 ##' @param cell.colors - cell colors to be used in show.gene function
 ##' @param expression.gradient - color palette used to show the expression magnitudes in show.gene function
 ##' @param residual.gradient - color palette used to show the u residuals in show.gene function
 ##' @param n.cores - number of cores to use
 ##' @param verbose - output messages about progress
-##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
+##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected) over a certain time ($deltaT), unscaled transcriptional change ($deltaE), fit results ($gamma, $ko, $sfit if spanning reads were used), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm), library scale ($mult)
 ##' @examples
 ##' \dontrun{
 ##'  # use min/max quantile gamma fit (recommended option when one can afford to do cell kNN smoothing)
 ##'  # The example below uses k=5 cell kNN pooling, and top/bottom 2% exprssion quantiles
-##'  # emat and nmat are spliced (exonic) and unspliced (intronic) molecule/read count matirces (preferably filtered for informative genes)
+##'  # emat and nmat are spliced (exonic) and unspliced (intronic) molecule/read count matirces
+##' (preferably filtered for informative genes)
 ##'  rvel <- gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02)
 ##'
-##'  # alternativly, the function can be used to visualize gamma fit and regression for a particular gene
-##'  # here we pass embedding (a matrix/data frame with rows named with cell names, and columns corresponding to the x/y coordinates)
+##'  # alternativly, the function can be used to visualize gamma fit and regression for a
+##' particular gene. here we pass embedding (a matrix/data frame with rows named with cell names,
+##' and columns corresponding to the x/y coordinates)
+##' 
 ##'  # and cell colors. old.fit is used to save calculation time.
-##'  gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02,old.fit=rvel,show.gene='Chga',cell.emb=emb,cell.colors=cell.colors)
+##'  gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02,
+##'     old.fit=rvel,show.gene='Chga',cell.emb=emb,cell.colors=cell.colors)
 ##' }
 ##' @export
 gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady.state.cells=colnames(emat),kCells=10,cellKNN=NULL,kGenes=1,old.fit=NULL,mult=1e3,min.nmat.smat.correlation=0.05,min.nmat.emat.correlation=0.05, min.nmat.emat.slope=0.05, zero.offset=FALSE,deltaT2=1, fit.quantile=NULL, show.gene=NULL, do.par=TRUE, cell.dist=NULL, emat.size=NULL, nmat.size=NULL, cell.emb=NULL, cell.colors=NULL, expression.gradient=NULL,residual.gradient=NULL, n.cores=defaultNCores(), verbose=TRUE) {
@@ -198,8 +207,8 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       # show embedding heatmaps
       cc <- intersect(rownames(cell.emb),colnames(conv.emat.norm));
       if(do.par) { par(mfrow=c(1,4), mar = c(2.5,2.5,2.5,0.5), mgp = c(1.5,0.65,0), cex = 0.85); }
-      plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.emat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'s'),axes=F); box();
-      plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.nmat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'u'),axes=F); box();
+      plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.emat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'s'),axes=F); box();
+      plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(conv.nmat.norm[gn,cc],gradientPalette=expression.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'u'),axes=F); box();
     }
     do <- NULL;
     if(!is.null(smat)) { # use smat-based offsets
@@ -252,7 +261,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     lines(df$e,predict(d,newdata=df),lty=2,col=2)
 
     if(!is.null(cell.emb)) {
-      plot(emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(resid(d)[cc],gradientPalette=residual.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'resid'),axes=F); box();
+      plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(resid(d)[cc],gradientPalette=residual.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'resid'),axes=F); box();
     }
     if(kGenes>1) { return(invisible(geneKNN)) } else { return(1) }
   }
@@ -370,7 +379,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
   
   cat("done\n")
   full.ko$valid <- rownames(full.ko) %in% rownames(ko)
-  resl <- c(resl,list(projected=emn,current=emat.norm,deltaE=deltaE,deltaT=deltaT,ko=full.ko,mult=mult,cellKNN=cellKNN,kCells=kCells));
+  resl <- c(resl,list(projected=emn,current=emat.norm,deltaE=deltaE,deltaT=deltaT,ko=full.ko,mult=mult,kCells=kCells));
   if(!is.null(smat)) { resl$sfit <- sfit }
   return(resl)
 }
@@ -407,7 +416,8 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##'  # base.df (here dat$base.df) is a gene information table.
 ##'  #   For SMART-seq2, it is part of the \code{\link{read.smartseq2.bams}} output.
 ##'  #   For droplet data, this info can be obtained \code{\link{}}
-##'  gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5, kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
+##'  gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
+##'        kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
 ##'  
 ##' }
 ##' @export
@@ -571,8 +581,8 @@ filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.ave
 ##' @param vel velocity estimation (gene-relative or global)
 ##' @param nPcs number of successive PCs to visualize
 ##' @param cell.colors a named vector of cell colors for visualization
-##' @param scale 
-##' @param plot.cols 
+##' @param scale scale to use for expression state transform (default: 'log', other possible values are 'sqrt','linear')
+##' @param plot.cols number of columns into which to arrange the plots
 ##' @param norm.nPcs optional total number of PCs to use for velocity magnitude normalization
 ##' @param do.par whether to set up graphical parameters of a plot
 ##' @param pc.multipliers an optional vector multipliers for the cell PC scores (useful for reorienting the PCs)
@@ -581,16 +591,22 @@ filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.ave
 ##' @param grid.sd standard deviation of the grid
 ##' @param arrow.scale scale multiplier for the velocity estimates
 ##' @param min.grid.cell.mass minimum cellular mass
-##' @param pcount 
-##' @param arrow.lwd 
-##' @param size.norm 
-##' @param ... 
-##' @return 
+##' @param min.arrow.size minimum size of an arrow to show
+##' @param pcount pseudocount
+##' @param arrow.lwd thickness of arrows to plot
+##' @param size.norm whether to rescale current and projected states by cell size (default=FALSE)
+##' @param return.details whether to return detailed output
+##' @param plot.grid.points whether to show dots at every grid point
+##' @param fixed.arrow.length whether to use fixed-size arrow
+##' @param max.grid.arrow.length limit to the size of the arrows that could be shown (when fixed.arrow.length=FALSE)
+##' @param n.cores number of cores to use in the calculations
+##' @param ... extra parameters are passed to plot() function
+##' @return If return.details=F, returns invisible list containing PCA info (epc) and projection of velocities onto the PCs (delta.pcs). If return.details=T, returns an extended list that can be passed into p1 app for velocity visualization.
 ##' @export
 pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=min(3,nPcs-1),norm.nPcs=NA,do.par=T, pc.multipliers=NULL, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, arrow.scale=1, min.grid.cell.mass=1, min.arrow.size=NULL, pcount=1, arrow.lwd=1, size.norm=FALSE, return.details=FALSE, plot.grid.points=FALSE, fixed.arrow.length=FALSE,max.grid.arrow.length=NULL, n.cores=defaultNCores(), ...) {
   x0 <- vel$current;
   x1 <- vel$projected;
-  if(is.null(cell.colors)) { cell.colors <- adjustcolor(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
+  if(is.null(cell.colors)) { cell.colors <- ac(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
   # rescale to the same size
   if(size.norm) {
     cat("rescaling ... ")
@@ -665,7 +681,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     pos <- epc@scores[,c((i-1)+1,(i-1)+2)];
     #ppos <- x1.scores[,c((i-1)+1,(i-1)+2)];
     ppos <- pos+delta.pcs[,c((i-1)+1,(i-1)+2)];
-    plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=adjustcolor(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep=''),  ...); box();
+    plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=ac(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep=''),  ...); box();
     
     if(show.grid.flow) { # show grid summary of the arrows
       # arrow estimates for each cell
@@ -716,11 +732,11 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
       
       # plot
       if(fixed.arrow.length) {
-        arrows(garrows[,1],garrows[,2],garrows[,3],garrows[,4],length=0.05,lwd=arrow.lwd)
+        suppressWarnings(arrows(garrows[,1],garrows[,2],garrows[,3],garrows[,4],length=0.05,lwd=arrow.lwd))
       } else {
         alen <- pmin(max.grid.arrow.length,sqrt( ((garrows[,3]-garrows[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((garrows[,4]-garrows[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2))
         # can't specify different arrow lengths in one shot :(
-        lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd))
+        suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd)))
       }
       if(plot.grid.points) points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
     
@@ -776,38 +792,37 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   return(invisible(list(epc=epc,delta.pcs=delta.pcs)))
   
 }
-##' Joint t-SNE visualization of the velocities
+##' Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions
 ##'
-##' @param vel 
-##' @param cell.colors 
-##' @param scale 
-##' @param plot.cols 
-##' @param do.par 
-##' @param delta.norm 
-##' @param nPcs 
-##' @param norm.nPcs 
-##' @param perplexity 
-##' @param show.grid.flow 
-##' @param grid.n 
-##' @param grid.sd 
-##' @param min.grid.cell.mass 
-##' @param pcount 
-##' @param verbose 
-##' @param min.arrow.median.ratio 
-##' @param max.arrow.quantile 
-##' @param arrow.scale 
-##' @param arrow.lwd 
-##' @param xlab 
-##' @param ylab 
-##' @param n.cores 
-##' @param size.norm 
-##' @param ... 
-##' @return 
+##' @param vel velocity result
+##' @param cell.colors named color vector for the cells
+##' @param scale whether to rescale current/projected
+##' @param do.par whether to reset par (default=T)
+##' @param delta.norm whether to renormalize velocities following PCA projection
+##' @param nPcs number of PCs onto which project the velocities
+##' @param norm.nPcs number of PCs to use for velocity normalization
+##' @param perplexity perplexity parameter to use in joint t-SNE calculation
+##' @param show.grid.flow whether grid flow pattern should be drawn
+##' @param grid.n number of grid points along each axis
+##' @param grid.sd standard deviation of each grid point (used to determine the averaging radius for each grid point)
+##' @param min.grid.cell.mass minimal number of cells around a grid point required for the grid point to show up
+##' @param pcount pseudocount
+##' @param verbose whether to show messages
+##' @param min.arrow.median.ratio minimal ratio of arrow length (to the median arrow length) below which the arrows are not drawn (default=1/10)
+##' @param max.arrow.quantile max arrow quantile that's used for arrow size calculation (default=0.9)
+##' @param arrow.scale scaling factor for the arrows
+##' @param arrow.lwd arrow line width
+##' @param xlab x axis label
+##' @param ylab y axis label
+##' @param n.cores number of cores to use
+##' @param size.norm whether to re-normalize current and projected cell sizes
+##' @param ... extra parameters are passed to plot() routine.
+##' @return invisible list containing embedding positions of current state (current.emb) and extrapolated states (projected.emb)
 ##' @export
-tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',plot.cols=3,do.par=T, delta.norm=TRUE, nPcs=15, norm.nPcs=nPcs*10, perplexity=ncol(vel$current)/3, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, min.grid.cell.mass=1, pcount=0.1, verbose=TRUE, min.arrow.median.ratio=1/10, max.arrow.quantile=0.9, arrow.scale=1, arrow.lwd=1, xlab="", ylab="", n.cores=defaultNCores(), size.norm=TRUE, ...) {
+tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.norm=TRUE, nPcs=15, norm.nPcs=nPcs*10, perplexity=ncol(vel$current)/3, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, min.grid.cell.mass=1, pcount=0.1, verbose=TRUE, min.arrow.median.ratio=1/10, max.arrow.quantile=0.9, arrow.scale=1, arrow.lwd=1, xlab="", ylab="", n.cores=defaultNCores(), size.norm=TRUE, ...) {
   x0 <- vel$current;
   x1 <- vel$projected;
-  if(is.null(cell.colors)) { cell.colors <- adjustcolor(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
+  if(is.null(cell.colors)) { cell.colors <- ac(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
   
   if(size.norm) {
     # rescale to the same size
@@ -864,7 +879,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',plot.cols=3,do.p
   delta.emb[no.arrow,] <- 0;
   cat("done\n") 
   if(do.par) par(mfrow=c(1,1), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
-  plot(x0.emb,bg=cell.colors[rownames(x0.emb)],pch=21,col=adjustcolor(1,alpha=0.3),xlab=ylab,ylab=xlab, ... ); box();
+  plot(x0.emb,bg=cell.colors[rownames(x0.emb)],pch=21,col=ac(1,alpha=0.3),xlab=ylab,ylab=xlab, ... ); box();
   
   
   if(show.grid.flow) { # show grid summary of the arrows
@@ -911,43 +926,43 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',plot.cols=3,do.p
 
 ##' Visualize RNA velocities on an existing embedding using correlation-based transition probability matrix within the kNN graph
 ##'
-##' .. content for \details{} ..
-##' @title 
-##' @param emb 
-##' @param vel 
-##' @param n 
-##' @param cell.colors 
-##' @param corr.sigma 
-##' @param show.grid.flow 
-##' @param grid.n 
-##' @param grid.sd 
-##' @param min.grid.cell.mass 
-##' @param min.arrow.size 
-##' @param arrow.scale 
-##' @param max.grid.arrow.length 
-##' @param fixed.arrow.length 
-##' @param plot.grid.points 
-##' @param scale 
-##' @param nPcs 
-##' @param arrow.lwd 
-##' @param xlab 
-##' @param ylab 
-##' @param n.cores 
-##' @param do.par 
-##' @param show.cell 
-##' @param cell.border.alpha 
-##' @param diffusion.steps 
-##' @param cc 
-##' @param ... 
-##' @return 
+##' @param emb embedding onto which to project the velocities; The dimensions of coordinates should be on the order of 10x10 for the default values to make sense.
+##' @param vel velocity estimates (e.g. returned by gene.relative.velocity.estimates() )
+##' @param n neighborhood size (default=100 cells)
+##' @param cell.colors name vector of cell colors
+##' @param corr.sigma sigma parameter used to translate velocity-(expression delta) correlation into a transition probability
+##' @param show.grid.flow whether to show grid velocity summary
+##' @param grid.n number of grid points along each axis
+##' @param grid.sd standard deviation (in embedding coordinate space) used to determine the weighting of individual cells around each grid point
+##' @param min.grid.cell.mass minimal cell "mass" (weighted number of cells) around each grid point required for it to show up
+##' @param min.arrow.size minimal arrow size
+##' @param arrow.scale arrow scale multiplier
+##' @param max.grid.arrow.length minimal arrow size
+##' @param fixed.arrow.length whether to use fixed arrow width (default=FALSE)
+##' @param plot.grid.points whether to mark all grid points with dots (even if they don't have valid velocities)
+##' @param scale velocity scale to use (default: 'log', other values: 'sqrt','rank','linear')
+##' @param nPcs number of PCs to use for velocity regularization (default NA, turns off regularization)
+##' @param arrow.lwd arrow width (under fixed.arrow.length=T)
+##' @param xlab x axis label
+##' @param ylab y axls label
+##' @param n.cores number of cores to use
+##' @param do.par whether to reset plotting parameters
+##' @param show.cell whether to show detailed velocity estimates for a specified cell
+##' @param cell.border.alpha transparency for the cell border
+##' @param cc velocity-(exprssion delta) correlation matrix (can be passed back from previous results, as $cc) to save calculation time when replotting the same velocity estimates on the same embedding with different parameters
+##' @param return.details whether to return detailed output (which can be passed to p1 app for visualization)
+##' @param expression.scaling whether to scale the velocity length by the projection of velocity onto the expected expression change (based on the transition probability matrix)
+##' @param ... extra parameters passed to plot() function
+##' @return if return.details=F, returns invisible list containing transition probability matrix ($tp) and the velocity-(expression delta) correlation matrix ($cc). If return.details=T, returns a more extended list that can be passed as veloinfo to pagoda2::p2.make.pagoda1.app() for visualization
 ##' @export
-show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.sigma=0.05, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, min.grid.cell.mass=1, min.arrow.size=NULL, arrow.scale=1, max.grid.arrow.length=NULL, fixed.arrow.length=FALSE, plot.grid.points=FALSE, scale='log', nPcs=NA,  arrow.lwd=1, xlab="", ylab="", n.cores=defaultNCores(), do.par=T, show.cell=NULL, cell.border.alpha=0.3, diffusion.steps=10,cc=NULL, return.details=FALSE, expression.scaling=FALSE, randomize=FALSE, ...) {
+show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.sigma=0.05, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, min.grid.cell.mass=1, min.arrow.size=NULL, arrow.scale=1, max.grid.arrow.length=NULL, fixed.arrow.length=FALSE, plot.grid.points=FALSE, scale='log', nPcs=NA,  arrow.lwd=1, xlab="", ylab="", n.cores=defaultNCores(), do.par=T, show.cell=NULL, cell.border.alpha=0.3,cc=NULL, return.details=FALSE, expression.scaling=FALSE,  ...) {
+  randomize <- FALSE;
   if(do.par) par(mfrow=c(1,1), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
   celcol <- 'white'
   if(is.null(show.cell)) { celcol <- cell.colors[rownames(emb)] }
-  plot(emb,bg=celcol,pch=21,col=adjustcolor(1,alpha=cell.border.alpha), xlab=xlab, ylab=ylab, ...);
+  plot(emb,bg=celcol,pch=21,col=ac(1,alpha=cell.border.alpha), xlab=xlab, ylab=ylab, ...);
   
-  #plot(emb,bg=cell.colors[rownames(emb)],pch=21,col=adjustcolor(1,alpha=0.3), xlab=xlab, ylab=ylab);
+  #plot(emb,bg=cell.colors[rownames(emb)],pch=21,col=ac(1,alpha=0.3), xlab=xlab, ylab=ylab);
   em <- as.matrix(vel$current); 
   ccells <- intersect(rownames(emb),colnames(em));
   em <- em[,ccells]; emb <- emb[ccells,]
@@ -1080,12 +1095,12 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.si
 
     # plot
     if(fixed.arrow.length) {
-      arrows(garrows[,1],garrows[,2],garrows[,3],garrows[,4],length=0.05,lwd=arrow.lwd)
+      suppressWarnings(arrows(garrows[,1],garrows[,2],garrows[,3],garrows[,4],length=0.05,lwd=arrow.lwd))
     } else {
       alen <- pmin(max.grid.arrow.length,sqrt( ((garrows[,3]-garrows[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((garrows[,4]-garrows[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2))
       # can't specify different arrow lengths in one shot :(
       #suppressWarnings(arrows(garrows[,1],garrows[,2],garrows[,3],garrows[,4],length=alen,lwd=arrow.lwd))
-      lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd))
+      suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd)))
     }
     if(plot.grid.points) points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
     
@@ -1193,41 +1208,41 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=5,cell.colors=NULL, corr.si
 ##' The direction of the arrow is towards n closest neighbors. The magnitude of the arrow is determined by the cosine projection of the velocity on to the chosen direction
 ##' n=1 will only show arrows for cells that end up being projected closer to some other cell than to the original position
 ##' n=k (k>1) will show an average direction
+##' Given an expression distance between cells d, and ratio of extrapolated to current expression distances between cells f, the transition probability is calculated as exp(- (d*(f^beta))^2/(2*sigma^2) )
 ##' 
-##' @title 
-##' @param emb 
-##' @param vel 
-##' @param n 
-##' @param embedding.knn 
-##' @param cell.colors 
-##' @param sigma 
-##' @param beta 
-##' @param arrow.scale 
-##' @param scale 
-##' @param nPcs 
-##' @param arrow.lwd 
-##' @param xlab 
-##' @param ylab 
-##' @param control.for.neighborhood.density 
-##' @param ntop.trajectories 
-##' @param do.par 
-##' @param show.cell.arrows 
-##' @param show.cell.trajectories 
-##' @param show.trajectories 
-##' @param show.all.trajectories 
-##' @param show.cell.diffusion.posterior 
-##' @param show.grid.flow 
-##' @param diffusion.steps 
+##' @param emb embedding to be used for projection
+##' @param vel velocity result
+##' @param n neighborhood size (default=30)
+##' @param embedding.knn pre-calculated kNN
+##' @param cell.colors named color vector for cell plotting
+##' @param sigma sigma to use in calculating transition probability from the eucledian distance (estimated automatically by default)
+##' @param beta beta parameter used in calculation of transition probability (by default=1)
+##' @param arrow.scale additional scaling factor for the arrows (default=1)
+##' @param scale scale to use in calculating distances (default: 'log', also supported 'sqrt'
+##' @param nPcs number of PCs to project the cells onto (to perform distance calculations in lower dimensions), default=NA which turns off PCA dimensional reduction
+##' @param arrow.lwd arrow line width
+##' @param xlab x axis label
+##' @param ylab y axis label
+##' @param control.for.neighborhood.density compensate for cell density variations in the embedding (default: TRUE)
+##' @param ntop.trajectories number of top trajectories to trace back for a given cell (when show.trajectories=TRUE)
+##' @param do.par whether to reset plotting parameters (default=TRUE)
+##' @param show.cell.arrows show detailed velocity projection for the specified cell
+##' @param show.cell.trajectories show trajectories for a specified cell
+##' @param show.trajectories show top median diffusion trajectories
+##' @param show.all.trajectories show all diffusion paths (messy)
+##' @param show.cell.diffusion.posterior show diffusion posterior of a given cell
+##' @param show.grid.flow show velocity projections on a grid
+##' @param diffusion.steps number of diffusion steps to take forward (default=10)
 ##' @param cell.dist - optional custom distance (must include all of the cells that are intersecting between emb and vel)
-##' @param trajectory.spline.shape 
-##' @param cell.color.alpha 
-##' @param n.cores 
-##' @param n.trajectory.clusters 
-##' @param ... 
-##' @return 
+##' @param trajectory.spline.shape shape parameter for smoothing median cell trajectories (default=1)
+##' @param cell.color.alpha trasparency parameter to apply when showing cell colors
+##' @param n.cores number of cores to use in calculations
+##' @param n.trajectory.clusters number of trajectory clusters to show median paths for (when show.trajectories=TRUE)
+##' @param ... extra parameters are passed to the plot() function
+##' @return transition probability matrix
 ##' @export
-show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.colors=NULL, sigma=NA, beta=1, arrow.scale=1, scale='log', nPcs=NA, arrow.lwd=1, xlab="", ylab="", control.for.neighborhood.density=FALSE, ntop.trajectories=1, do.par=T, show.cell.arrows=NULL, show.cell.trajectories=NULL, show.trajectories=FALSE, show.all.trajectories=FALSE, show.cell.diffusion.posterior=NULL, show.grid.flow=FALSE, diffusion.steps=10, cell.dist=NULL, trajectory.spline.shape=1, cell.color.alpha=0.5, n.cores=defaultNCores(), n.trajectory.clusters=10, ...) {
-  if(is.null(cell.colors)) { cell.colors <- adjustcolor(rep(1,ncol(em)),alpha=0.3); names(cell.colors) <- colnames(em) }
+show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.colors=NULL, sigma=NA, beta=1, arrow.scale=1, scale='log', nPcs=NA, arrow.lwd=1, xlab="", ylab="", control.for.neighborhood.density=TRUE, ntop.trajectories=1, do.par=T, show.cell.arrows=NULL, show.cell.trajectories=NULL, show.trajectories=FALSE, show.all.trajectories=FALSE, show.cell.diffusion.posterior=NULL, show.grid.flow=FALSE, diffusion.steps=10, cell.dist=NULL, trajectory.spline.shape=1, cell.color.alpha=0.5, n.cores=defaultNCores(), n.trajectory.clusters=10, ...) {
+  if(is.null(cell.colors)) { cell.colors <- ac(rep(1,ncol(em)),alpha=0.3); names(cell.colors) <- colnames(em) }
   if(do.par) par(mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
   cc <- 'white'
   if(is.null(show.cell.arrows) && is.null(show.cell.diffusion.posterior)) { cc <- cell.colors[rownames(emb)] }
@@ -1284,7 +1299,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
         cn <- colnames(em)
         cell.dist <- as.dist(cell.dist[cn,cn]);
       }
-      cell.knn <- balancedKNN(t(emb),k=n,maxl=nrow(emb),dist='euclidean',n.threads=n.cores,dist=cell.dist)
+      cell.knn <- balancedKNN(t(emb),k=n,maxl=nrow(emb),n.threads=n.cores,dist=cell.dist)
       diag(cell.knn) <- 1;
     } else {
       if(embedding.knn) {
@@ -1342,7 +1357,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     i <- match(show.cell.diffusion.posterior,rownames(emb));
     if(is.na(i)) stop(paste('specified cell',i,'is not in the embedding'))
     # run diffusion
-    cp <- Diagonal(ncol(tp)); # cell position probabilities
+    cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities
     rownames(cp) <- colnames(cp) <- rownames(tp);
     ttp <- t(tp);
     
@@ -1372,7 +1387,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     suppressWarnings(arrows(emb[colnames(em)[i],1]+dic[1],emb[colnames(em)[i],2]+dic[2],emb[colnames(em)[i],1]+dir[1],emb[colnames(em)[i],2]+dir[2],length=0.05,lwd=1,lty=1,col='grey50'))
     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+dia[1],emb[colnames(em)[i],2]+dia[2],length=0.05,lwd=1,col='black'))
   } else if(show.trajectories) { # show diffusion paths
-    cp <- Diagonal(ncol(tp)); # cell position probabilities
+    cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities
     rownames(cp) <- colnames(cp) <- rownames(tp);
   
     #cpt <- as.array(cp);
@@ -1446,7 +1461,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
 
     
     spuci.dist <- as.matrix(dist(t(spuci),method = 'manhattan'))
-    spuci.pam <- cluster::pam(spuci.dist,n.trajectory.clusters)
+    spuci.pam <- pam(spuci.dist,n.trajectory.clusters)
     cat("done.\n")
     
     # bezier
@@ -1468,7 +1483,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     celli <- match(show.cell.trajectories,rownames(emb));
     if(is.na(celli)) stop(paste('specified cell',show.cell.trajectories,'is not in the embedding'))
 
-    cp <- Diagonal(ncol(tp)); # cell position probabilities
+    cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities
     rownames(cp) <- colnames(cp) <- rownames(tp);
     
     #cpt <- as.array(cp);
@@ -1534,7 +1549,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     })
     return(invisible(sp))
   } else if(show.all.trajectories) { # show diffusion paths
-    cp <- Diagonal(ncol(tp)); # cell position probabilities row-from col-to
+    cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities row-from col-to
     rownames(cp) <- colnames(cp) <- rownames(tp);
     ep <- as.array(emb)
     
@@ -1564,14 +1579,14 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
 }
 
 
-##' Read in cell-specific bam files for SMART-seq2 measurement
-##'
-##' @title 
+##' DEPRECATED: Read in cell-specific bam files for SMART-seq2 measurement
+##' This function is deprecated. Please use velocyto.py to prepare loom file from SMART-seq2 bam files.
+##' @title read.smartseq2.bams
 ##' @param bam.files list of bam files
 ##' @param annotation.file refFlat genome annotation file (use gtfToGenePred to generate refFlat file from gtf)
 ##' @param min.exon.count minimum number of reads (across all cells) for an exon to be considered expressed in the dataset
-##' @param n.cores 
-##' @return 
+##' @param n.cores number of cores to use
+##' @return a list containing: emat - exonic (spliced) read count matrix ; iomat - intronic (unspliced) matrix; smat - spanning read matrix; base.df - data frame containing gene structural information; exons - exon annotation and read counts; genes - gene annotation table with additional structural info; expr.lstat - gene length statistics when considering only expressed exons
 ##' @export
 read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.cores=defaultNCores()) {
   # read in annotation 
@@ -1652,10 +1667,9 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
 ##' @param bam.files list of bam files (one per cell)
 ##' @param annotation.file gene annotation refFlat file
 ##' @param min.exon.count minimum number of molecules (across all cells) for the exon to be considered expressed
-##' @param n.cores 
+##' @param n.cores number of cores to use
 ##' @param min.umi.reads minimum number of read required per UMI/gene combination to be counted (defaults to 1)
-##' @return 
-##' @export
+##' @return a list structure analogous to the return of read.smartseq2.bams(), counting molecules instead of reads.
 read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.cores=defaultNCores(),min.umi.reads=1) {
   # read in annotation 
   # TODO: enable direct gtf read
@@ -1751,9 +1765,9 @@ t.annotate.bam.reads <- function(fname, genes, exons, chrl=unique(genes$chr), te
   z <- GenomicAlignments::readGAlignments(fname,param=param,use.names=use.names)
   
   bam.data <- data.frame(chr=as.vector(GenomeInfoDb::seqnames(z)),start=BiocGenerics::start(z),end=BiocGenerics::end(z),strand=as.vector(BiocGenerics::strand(z)),stringsAsFactors=F)
-  if(!is.null(tags)) {
-    bam.data <- cbind(bam.data,as.data.frame(elementMetadata((z))))
-  }
+  ## if(!is.null(tags)) {
+  ##   bam.data <- cbind(bam.data,as.data.frame(S4Vectors::elementMetadata((z))))
+  ## }
   if(use.names) {
     bam.data$name <- names(z)
   }
@@ -1891,12 +1905,13 @@ edgeR.libsize <- function(mat, ...) {
 # quick self-naming vector routine
 sn <- function(x) { names(x) <- x; x}
 
-# adjust colors, while keeping the vector names
+#' adjust colors, while keeping the vector names
 #' 
-#' @param color
+#' @param x color vector
+#' @param alpha transparenscy value (passed to adjustcolors as alpha.f)
 #' @param ... parameters passsed to adjustcolor
 #' @export
-ac <- function(x, ...) { y <- adjustcolor(x, ...); names(y) <- names(x); return(y)}
+ac <- function(x, alpha=1, ...) { y <- adjustcolor(x, alpha.f=alpha, ...); names(y) <- names(x); return(y)}
 
 # quick function to map value vector to colors
 val2col <- function(x,gradientPalette=NULL,zlim=NULL,gradient.range.quantile=0.95) {
@@ -1973,13 +1988,17 @@ t.get.projected.cell2 <- function(em,cellSize,deltae,mult=1e3,delta=1) {
 ##' prepared by velocyto.py CLI
 ##'
 ##' @param file loom file name
-##' @return a list containing spliced, unspliced and ambiguous matrices
+##' @return a list containing spliced, unspliced, ambiguous and spanning matrices
 ##' @export
 read.loom.matrices <- function(file) {
   f <- h5::h5file(file,mode='r');
   cells <- f["col_attrs/CellID"][];
   genes <- f["row_attrs/Gene"][];
-  dlist <- lapply(c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous"),function(path) {
+  dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
+  if("/layers/spanning" %in% list.datasets(f)) {
+    dl <- c(dl,c(spanning="/layers/spanning"))
+  }
+  dlist <- lapply(dl,function(path) {
     m <- as(f[path][],'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
   })
   h5::h5close(f)
@@ -2048,7 +2067,7 @@ t.get.projected.delta.from.log2ratio <- function(em,gamma,r,delta=0.5,min.val=1e
 points.within <- function(x,fs,fe,return.list=F,return.unique=F,sorted=F,return.point.counts=F) {
   if(is.null(x) | length(x) < 1) { return(c()) };
   if(!sorted) {
-    ox <- rank(x,ties="first");
+    ox <- rank(x,ties.method="first");
     x <- sort(x);
   }
   
@@ -2094,6 +2113,11 @@ balancedKNN <- function(val,k,maxl=k,return.distance.values=FALSE,n.threads=1,di
 
 
 # fater matrix correlations wtih armadillo
+##' A slightly faster way of calculating column correlation matrix
+##' @param mat matrix whose columns will be correlated
+##' @param nthreads number of threads to use 
+##' @return correlation matrix 
+##' @export
 armaCor <- function(mat,nthreads=1) {
   cd <- arma_mat_cor(mat);
   rownames(cd) <- colnames(cd) <- colnames(mat);

@@ -2,10 +2,10 @@
 % Please edit documentation in R/momentum_routines.R
 \name{tSNE.velocity.plot}
 \alias{tSNE.velocity.plot}
-\title{Joint t-SNE visualization of the velocities}
+\title{Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions}
 \usage{
-tSNE.velocity.plot(vel, cell.colors = NULL, scale = "log", plot.cols = 3,
-  do.par = T, delta.norm = TRUE, nPcs = 15, norm.nPcs = nPcs * 10,
+tSNE.velocity.plot(vel, cell.colors = NULL, scale = "log", do.par = T,
+  delta.norm = TRUE, nPcs = 15, norm.nPcs = nPcs * 10,
   perplexity = ncol(vel$current)/3, show.grid.flow = FALSE, grid.n = 20,
   grid.sd = NULL, min.grid.cell.mass = 1, pcount = 0.1, verbose = TRUE,
   min.arrow.median.ratio = 1/10, max.arrow.quantile = 0.9,
@@ -13,54 +13,55 @@ tSNE.velocity.plot(vel, cell.colors = NULL, scale = "log", plot.cols = 3,
   n.cores = defaultNCores(), size.norm = TRUE, ...)
 }
 \arguments{
-\item{vel}{}
+\item{vel}{velocity result}
 
-\item{cell.colors}{}
+\item{cell.colors}{named color vector for the cells}
 
-\item{scale}{}
+\item{scale}{whether to rescale current/projected}
 
-\item{plot.cols}{}
+\item{do.par}{whether to reset par (default=T)}
 
-\item{do.par}{}
+\item{delta.norm}{whether to renormalize velocities following PCA projection}
 
-\item{delta.norm}{}
+\item{nPcs}{number of PCs onto which project the velocities}
 
-\item{nPcs}{}
+\item{norm.nPcs}{number of PCs to use for velocity normalization}
 
-\item{norm.nPcs}{}
+\item{perplexity}{perplexity parameter to use in joint t-SNE calculation}
 
-\item{perplexity}{}
+\item{show.grid.flow}{whether grid flow pattern should be drawn}
 
-\item{show.grid.flow}{}
+\item{grid.n}{number of grid points along each axis}
 
-\item{grid.n}{}
+\item{grid.sd}{standard deviation of each grid point (used to determine the averaging radius for each grid point)}
 
-\item{grid.sd}{}
+\item{min.grid.cell.mass}{minimal number of cells around a grid point required for the grid point to show up}
 
-\item{min.grid.cell.mass}{}
+\item{pcount}{pseudocount}
 
-\item{pcount}{}
+\item{verbose}{whether to show messages}
 
-\item{verbose}{}
+\item{min.arrow.median.ratio}{minimal ratio of arrow length (to the median arrow length) below which the arrows are not drawn (default=1/10)}
 
-\item{min.arrow.median.ratio}{}
+\item{max.arrow.quantile}{max arrow quantile that's used for arrow size calculation (default=0.9)}
 
-\item{max.arrow.quantile}{}
+\item{arrow.scale}{scaling factor for the arrows}
 
-\item{arrow.scale}{}
+\item{arrow.lwd}{arrow line width}
 
-\item{arrow.lwd}{}
+\item{xlab}{x axis label}
 
-\item{xlab}{}
+\item{ylab}{y axis label}
 
-\item{ylab}{}
+\item{n.cores}{number of cores to use}
 
-\item{n.cores}{}
+\item{size.norm}{whether to re-normalize current and projected cell sizes}
 
-\item{size.norm}{}
-
-\item{...}{}
+\item{...}{extra parameters are passed to plot() routine.}
+}
+\value{
+invisible list containing embedding positions of current state (current.emb) and extrapolated states (projected.emb)
 }
 \description{
-Joint t-SNE visualization of the velocities
+Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions
 }

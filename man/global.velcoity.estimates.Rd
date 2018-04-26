@@ -60,3 +60,15 @@ a list with velocity results, including the current normalized expression state 
 \description{
 Structure-based gene velocity estimation
 }
+\examples{
+\dontrun{
+ # emat / nmat are the spliced/unpsliced matrices respectively
+ # rvel is a gene-relative velocity estimate
+ # base.df (here dat$base.df) is a gene information table.
+ #   For SMART-seq2, it is part of the \\code{\\link{read.smartseq2.bams}} output.
+ #   For droplet data, this info can be obtained \\code{\\link{}}
+ gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
+       kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
+ 
+}
+}

@@ -9,9 +9,9 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
   kGenes = 1, old.fit = NULL, mult = 1000,
   min.nmat.smat.correlation = 0.05, min.nmat.emat.correlation = 0.05,
   min.nmat.emat.slope = 0.05, zero.offset = FALSE, deltaT2 = 1,
-  fit.quantile = NULL, show.gene = NULL, do.par = TRUE,
-  cell.dist = NULL, emat.size = NULL, nmat.size = NULL, cell.emb = NULL,
-  cell.colors = NULL, expression.gradient = NULL,
+  fit.quantile = NULL, diagonal.quantiles = FALSE, show.gene = NULL,
+  do.par = TRUE, cell.dist = NULL, emat.size = NULL, nmat.size = NULL,
+  cell.emb = NULL, cell.colors = NULL, expression.gradient = NULL,
   residual.gradient = NULL, n.cores = defaultNCores(), verbose = TRUE)
 }
 \arguments{
@@ -47,6 +47,8 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
 
 \item{fit.quantile}{perform gamma fit on a top/bottom quantiles of expression magnitudes}
 
+\item{diagonal.quantiles}{whether extreme quantiles should be computed diagonally}
+
 \item{show.gene}{an optional name of a gene for which the velocity estimation details should be shown (instead of estimating all velocities)}
 
 \item{do.par}{whether the graphical device parameters should be reset as part of show.gene (default=TRUE)}
@@ -70,7 +72,7 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
 \item{verbose}{- output messages about progress}
 }
 \value{
-a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
+a list with velocity results, including the current normalized expression state ($current), projected ($projected) over a certain time ($deltaT), unscaled transcriptional change ($deltaE), fit results ($gamma, $ko, $sfit if spanning reads were used), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm), library scale ($mult)
 }
 \description{
 Estimate RNA velocity using gene-relative slopes

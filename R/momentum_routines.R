@@ -2,7 +2,7 @@
 #' @import MASS
 #' @import stats
 #' @import graphics
-#' @importFrom Matrix colSums rowSums spMatrix Diagonal
+#' @importFrom Matrix colSums rowSums spMatrix Diagonal t rowMeans colMeans rowSums colSums
 #' @importFrom utils read.delim
 #' @importFrom pcaMethods pca
 #' @importFrom mgcv gam s
@@ -41,6 +41,7 @@ NULL
 ##' @param zero.offset - should offset be set to zero, or determined (through smat regression or using near-0 e cases)
 ##' @param deltaT2 - scaling of the projected difference vector (normally should be set to 1)
 ##' @param fit.quantile perform gamma fit on a top/bottom quantiles of expression magnitudes
+##' @param diagonal.quantiles whether extreme quantiles should be computed diagonally
 ##' @param show.gene an optional name of a gene for which the velocity estimation details should be shown (instead of estimating all velocities)
 ##' @param do.par whether the graphical device parameters should be reset as part of show.gene (default=TRUE)
 ##' @param cell.dist - cell distance to use in cell kNN pooling calculations
@@ -70,7 +71,7 @@ NULL
 ##'     old.fit=rvel,show.gene='Chga',cell.emb=emb,cell.colors=cell.colors)
 ##' }
 ##' @export
-gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady.state.cells=colnames(emat),kCells=10,cellKNN=NULL,kGenes=1,old.fit=NULL,mult=1e3,min.nmat.smat.correlation=0.05,min.nmat.emat.correlation=0.05, min.nmat.emat.slope=0.05, zero.offset=FALSE,deltaT2=1, fit.quantile=NULL, show.gene=NULL, do.par=TRUE, cell.dist=NULL, emat.size=NULL, nmat.size=NULL, cell.emb=NULL, cell.colors=NULL, expression.gradient=NULL,residual.gradient=NULL, n.cores=defaultNCores(), verbose=TRUE) {
+gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady.state.cells=colnames(emat),kCells=10,cellKNN=NULL,kGenes=1,old.fit=NULL,mult=1e3,min.nmat.smat.correlation=0.05,min.nmat.emat.correlation=0.05, min.nmat.emat.slope=0.05, zero.offset=FALSE,deltaT2=1, fit.quantile=NULL, diagonal.quantiles=FALSE, show.gene=NULL, do.par=TRUE, cell.dist=NULL, emat.size=NULL, nmat.size=NULL, cell.emb=NULL, cell.colors=NULL, expression.gradient=NULL,residual.gradient=NULL, n.cores=defaultNCores(), verbose=TRUE) {
   if(!all(colnames(emat)==colnames(nmat))) stop("emat and nmat must have the same columns (cells)");
   if(!is.null(smat)) { if(!all(colnames(emat)==colnames(smat))) stop("smat must have the same columns (cells) as emat") }
   resl <- list();
@@ -283,8 +284,19 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
         d <- lm(n~e+offset(o)+0,data=df,weights=df$e^4+df$n^4);
         return(c(o=df$o[1],g=as.numeric(coef(d)[1]),r=cor(df$e,df$n,method='spearman')))
       } else {
-        eq <- quantile(df$e,p=c(fit.quantile,1-fit.quantile))
-        pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
+        if(diagonal.quantiles) {
+          # determine maximum ranges 
+          emax <- quantile(df$e,p=0.99)
+          nmax <- quantile(df$n,p=0.99)
+          if(emax==0) emax <- max(max(df$e),1e-3)
+          if(nmax==0) nmax <- max(max(df$n),1e-3)
+          x <- df$e/emax + df$n/nmax;
+          eq <- quantile(x,p=c(fit.quantile,1-fit.quantile))
+          pw <- as.numeric(x>=eq[2] | x<=eq[1])
+        } else {
+          eq <- quantile(df$e,p=c(fit.quantile,1-fit.quantile))
+          pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
+        }
         if(!is.null(smat)) { # use smat offset
           d <- lm(n~e+offset(o)+0,data=df,weights=pw);
           return(c(o=df$o[1],g=as.numeric(coef(d)[1]),r=cor(df$e,df$n,method='spearman')))
@@ -1995,7 +2007,7 @@ read.loom.matrices <- function(file) {
   cells <- f["col_attrs/CellID"][];
   genes <- f["row_attrs/Gene"][];
   dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
-  if("/layers/spanning" %in% list.datasets(f)) {
+  if("/layers/spanning" %in% h5::list.datasets(f)) {
     dl <- c(dl,c(spanning="/layers/spanning"))
   }
   dlist <- lapply(dl,function(path) {

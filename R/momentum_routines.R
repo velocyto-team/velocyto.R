@@ -2,7 +2,7 @@
 #' @import MASS
 #' @import stats
 #' @import graphics
-#' @importFrom Matrix colSums rowSums spMatrix Diagonal t rowMeans colMeans rowSums colSums
+#' @importFrom Matrix colSums rowSums spMatrix Diagonal t rowMeans colMeans rowSums colSums diag
 #' @importFrom utils read.delim
 #' @importFrom pcaMethods pca
 #' @importFrom mgcv gam s
@@ -1363,7 +1363,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   #tp <- tp * np.nd;
 
   if(control.for.neighborhood.density) { 
-    np.f <- diag(np);
+    np.f <- Matrix::diag(np);
     tp <- tp*(np.f)
     np <- np*(np.f)
   }
@@ -2177,10 +2177,11 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
   info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[paste('/info',n,sep='/')][] })
   info$chrm <- gsub("^chr","",info$chrm)
   cat(" done\n")
+  # extract cell names
+  cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/",list.datasets(f),value=T),value=T)))
   if(!is.null(cell.clusters)) {
     # count abundancies per element for each cell cluster
-    # extract cell names
-    cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/",list.datasets(f),value=T),value=T)))
+    
     if(!any(names(cell.clusters) %in% cnames)) {
       warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",paste(cnames[1:3],collapse=' '),"... ]"))
       cat("parsing out feature counts across all cells ... ")

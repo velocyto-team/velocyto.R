@@ -450,7 +450,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##' @export
 global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,n.cores=defaultNCores()) {
 
-  if(is.null(smat) && is.null(zero.offset)) { zero.offset <- TRUE; } # set zero offset to true unless we have smat data
+  if(is.null(zero.offset)) zero.offset <- is.null(smat); # set zero offset to true unless we have smat data
   
   mult <- vel$mult; # use the same library scale as in the supplied relative velocity estimates
   # reconsile gene lists
@@ -2251,7 +2251,7 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
   cat("calculating gene stats ... ")
   base.df <- t.get.lengthinfo(rowSums(info$cluster.feature.counts),min.exon.count = min.exon.count)
   cat("done\n")
-  return(list(gene.df=base.df,info=info))
+  return(list(gene.df=data.frame(base.df),info=info))
 }
 
 # estimate projected delta given x'=(y-o) - gamma*x solution

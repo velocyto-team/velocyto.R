@@ -10,7 +10,12 @@
 #' @importFrom cluster pam
 #' @importFrom Rcpp evalCpp
 #' @importFrom grDevices adjustcolor colorRampPalette
-
+#//' @importFrom Biostrings PWM matchPWM
+#//' @importFrom GenomicRanges GRanges
+#//' @importFrom IRanges IRanges
+#//' @importFrom data.table fread
+#' @importFrom h5 h5file h5close list.datasets
+#' @importFrom methods as
 NULL
 
 # optional imports
@@ -292,20 +297,28 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
           if(nmax==0) nmax <- max(max(df$n),1e-3)
           x <- df$e/emax + df$n/nmax;
           eq <- quantile(x,p=c(fit.quantile,1-fit.quantile))
-          pw <- as.numeric(x>=eq[2] | x<=eq[1])
+          if(!is.null(smat)) { # will use smat offset, so disregard lower quantile
+            pw <- as.numeric(x>=eq[2])
+          } else {
+            pw <- as.numeric(x>=eq[2] | x<=eq[1])
+          }
         } else {
           eq <- quantile(df$e,p=c(fit.quantile,1-fit.quantile))
-          pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
+          if(!is.null(smat) || zero.offset) { # will use smat offset, so disregard lower quantile
+            pw <- as.numeric(df$e>=eq[2])
+          } else {
+            pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
+          }
         }
-        if(!is.null(smat)) { # use smat offset
+        if(!is.null(smat) || zero.offset) { # use smat offset
           d <- lm(n~e+offset(o)+0,data=df,weights=pw);
           return(c(o=df$o[1],g=as.numeric(coef(d)[1]),r=cor(df$e,df$n,method='spearman')))
         } else {
           d <- lm(n~e,data=df,weights=pw)
+          # note: re-estimating offset here
           return(c(o=as.numeric(coef(d)[1]),g=as.numeric(coef(d)[2]),r=cor(df$e,df$n,method='spearman')))
         }
       }
-    
         
     },mc.cores=n.cores,mc.preschedule=T)))
     ko <- na.omit(ko)
@@ -402,7 +415,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##' @param emat - spliced (exonic) count matrix
 ##' @param nmat - unspliced (nascent) count matrix
 ##' @param vel - initial gene-relative velocity estimates (output of the gene.relative.velocity.estimates function) 
-##' @param base.df gene structure information data frame ($base.df in output of read.smartseq2.bams), containing the following columns ($il - total intronic length in log10(length+1) scale; $el - total exonic length; $nex - number of expressed (above some low threshold) exons)
+##' @param base.df gene structure information data frame ($gene.df in output of read.gene.mapping.info()), containing the following columns ($il - total intronic length in log10(length+1) scale; $el - total exonic length; $nex - number of expressed (above some low threshold) exons; as well as optional $nipconc/$nipdisc giving number of concordant and discordant internal priming sites)
 ##' @param deltaT - amount of time to project the cell forward
 ##' @param smat - optional spanning read matrix (used in offset calculations)
 ##' @param kGenes - number of genes to use in evaluating trimmed mean of M values
@@ -418,6 +431,8 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##' @param cellKNN - optional pre-calculated cell KNN matrix
 ##' @param cell.dist - cell distance to use in cell kNN pooling calculations
 ##' @param fit.quantile perform gamma fit on a top/bottom quantiles of expression magnitudes
+##' @param zero.offset force gene offsets to be zero (default if smat is not supplied), otherwise estimated from the lower quantile or quantile fit
+##' @param diagonal.quantiles whether diagonal quantile determination should be used (if fit.quantile is specified)
 ##' @param m.pcount - pseudocount to be used in M value calculations (defaults to 5)
 ##' @param n.cores - number of cores to use
 ##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
@@ -433,7 +448,10 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##'  
 ##' }
 ##' @export
-global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, m.pcount=5,n.cores=defaultNCores()) {
+global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,n.cores=defaultNCores()) {
+
+  if(is.null(smat) && is.null(zero.offset)) { zero.offset <- TRUE; } # set zero offset to true unless we have smat data
+  
   mult <- vel$mult; # use the same library scale as in the supplied relative velocity estimates
   # reconsile gene lists
   gi <- intersect(intersect(rownames(base.df),rownames(emat)),rownames(nmat))
@@ -478,7 +496,13 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   df$e <- log(rowSums(emat[rownames(df),])) # total gene expression
   # genome-wide model fit
   # fit genome-wide model for the slope, based on the gene structural parameters and the total expression (exonic) magnitude
-  km <- mgcv::gam(k~s(il,e)+s(eir)+s(nex),data=df,weights=sqrt(rowSums(emat[rownames(df),])))
+  if('nipconc' %in% colnames(base.df)) {
+    cat("with internal priming info ... ")
+    df <- cbind(df,data.frame(log10(base.df[names(gamma),c("nipconc","nipdisc")]+1))) 
+    km <- mgcv::gam(k~s(il,e)+s(eir)+s(nex)+s(nipconc)+s(nipdisc),data=df,weights=sqrt(rowSums(emat[rownames(df),])))
+  } else {
+    km <- mgcv::gam(k~s(il,e)+s(eir)+s(nex),data=df,weights=sqrt(rowSums(emat[rownames(df),])))
+  }
   cat(paste0(round((1-km$deviance/km$null.deviance)*100,1),"% deviance explained.\n"))
   
   # generate predictions for all genes
@@ -491,7 +515,7 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   
   # re-estimate offsets (and cellKNN) using relative fit
   cat("refitting offsets ... ")
-  vel2 <- gene.relative.velocity.estimates(emat,nmat,smat=smat,kCells=kCells,kGenes=1,cell.dist=cell.dist,fit.quantile=fit.quantile)
+  vel2 <- gene.relative.velocity.estimates(emat,nmat,smat=smat,kCells=kCells,kGenes=1,cell.dist=cell.dist,fit.quantile=fit.quantile,zero.offset=zero.offset,diagonal.quantiles=diagonal.quantiles)
   ko <- vel2$ko;
   cat("re-estimated offsets for",nrow(ko),"out of",nrow(emat),"genes\n")
   emat <- emat[rownames(ko),]; nmat <- nmat[rownames(ko),]
@@ -1769,6 +1793,20 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
 
 # parse bam file and annotate the reads relative to genes/exons
 t.annotate.bam.reads <- function(fname, genes, exons, chrl=unique(genes$chr), test.strand=F, margin=3e3, tags=NULL,use.names=FALSE,exon.margin=0) {
+
+  if (!requireNamespace("GenomicRanges", quietly = TRUE)) {
+    stop("Package \"GenomicRanges\" needed for this function to work. Please install it.", call. = FALSE)
+  }
+
+  if (!requireNamespace("Rsamtools", quietly = TRUE)) {
+    stop("Package \"Rsamtools\" needed for this function to work. Please install it.",call. = FALSE)
+  }
+
+  if (!requireNamespace("GenomeInfoDb", quietly = TRUE)) {
+    stop("Package \"GenomeInfoDb\" needed for this function to work. Please install it.",call. = FALSE)
+  }
+
+  
   if(!is.null(tags)) {
     param <- Rsamtools::ScanBamParam(flag=Rsamtools::scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),tag=unlist(tags))
   } else {
@@ -2017,6 +2055,204 @@ read.loom.matrices <- function(file) {
   return(dlist);
 }
 
+
+##' identify positions of likely internal priming sites by looking for polyA/polyT stretches within
+##' annotated intronic regions
+##'
+##' @param gtf.file location of a gtf file with gene annotations
+##' @param genome bioC genome structure (i.e. Mmusculus)
+##' @param genome.name name of the genome assembly (i.e. mm10)
+##' @param w A/T weight in the PWM
+##' @param n length of the motif
+##' @param min.score minimal required match score
+##' @param add.chr whether to add 'chr' prefix to the chromosome names in the gtf annotation (to match bioC)
+##' @return a data frame containing list of likely internal priming sites, listing chromosome ($chr), positions ($start/$end), name, PWM matching score, PWM match strand ($strand), gene, gene strand ($gs), and whether the motif is in concordant direction of gene transcription ($conc)
+##' @examples
+##' \dontrun{
+##' library(BSgenome.Mmusculus.UCSC.mm10)
+##' ip.mm10 <- t.generate.ip.mask('refdata-cellranger-mm10-1.2.0/genes/genes.gtf',Mmusculus,'mm10')
+##' }
+##' @export
+find.ip.sites <- function(gtf.file,genome,genome.name,w=0.9,n=15,min.score='80%',add.chr=TRUE) {
+  
+  if (!requireNamespace("GenomicRanges", quietly = TRUE)) {
+    stop("Package \"GenomicRanges\" needed for this function to work. Please install it.",
+         call. = FALSE)
+  }
+
+  if (!requireNamespace("Biostrings", quietly = TRUE)) {
+    stop("Package \"Biostrings\" needed for this function to work. Please install it.",
+         call. = FALSE)
+  }
+
+  # helper functions to move out of bioC classes
+  grange2df <- function(x,name='hit') {
+    data.frame(chr=as.character(GenomicRanges::seqnames(x)),
+               start=GenomicRanges::start(x),
+               end=GenomicRanges::end(x),
+               name=name,
+               score=GenomicRanges::score(x),
+               strand=GenomicRanges::strand(x))
+  }
+  
+  # read specified features from gtf file, recording specified attributes
+  t.read.gtf <- function(file,feature="gene",atts=c("gene_id"),n.cores=30) {
+    if (!requireNamespace("data.table", quietly = TRUE)) {
+      stop("Package \"data.table\" needed for this function to work. Please install it.",
+           call. = FALSE)
+    }
+    #x <- read.table(file,header=F,sep="\t",stringsAsFactors=F)
+    x <- data.table::fread(file,header=F,sep="\t",stringsAsFactors=F,data.table=FALSE)
+    vi <- which(x[,3]==feature)
+    names(atts) <- atts;
+    ad <- do.call(cbind,lapply(atts,function(att) {
+      gsub("\\\"","",gsub(paste('.*',att,' ([^;]*);.*',sep=""),"\\1",x[vi,9]))
+    }))
+    df <- x[vi,c(1,4,5,7)]
+    colnames(df) <- c("chr","start","end","strand");
+    cbind(df,ad,stringsAsFactors=F)
+  }
+
+  cat("reading genes ... ");
+  genes <- t.read.gtf(gtf.file,atts=c("gene_name"))
+  cat("done\n");
+  cat("reading exons ... ");
+  exons <- t.read.gtf(gtf.file,feature='exon',atts=c("gene_name","transcript_biotype"))
+  exons <- exons[exons$transcript_biotype=='protein_coding',] # want to mask everything else
+  if(add.chr) {
+    genes$chr <- paste0('chr',genes$chr);
+    exons$chr <- paste0('chr',exons$chr);
+  }
+  cat("done\n");
+  cat("making ranges ... ")
+  gene.ranges <- GenomicRanges::GRanges(genes$chr,IRanges::IRanges(start=genes[,2],end=genes[,3]),strand=genes$strand)
+  names(gene.ranges) <- genes$gene_name
+  exon.ranges <- GenomicRanges::GRanges(exons$chr,IRanges::IRanges(start=exons[,2],end=exons[,3]),strand=exons$strand)
+  cat("done\n");
+  cat("matching hits ... ")
+  N <- 1e3;
+  m <- as.matrix(rbind(A=rep(round(w*N),n),C=rep(round((1-w)/3*N),n),G=rep(round((1-w)/3*N),n),T=rep(round((1-w)/3*N),n))); storage.mode(m) <- 'integer'
+  pwm <- Biostrings::PWM(m)
+  hits <- Biostrings::matchPWM(pwm,genome,min.score=min.score,with.score=T)
+  cat("done\n");
+  cat("annotating hits .");
+  df <- grange2df(hits,name=paste0('(A)',n)) # convert into a table
+  cat(".");
+  df <- do.call(rbind,tapply(1:nrow(df),df$chr,function(ii) df[ii[order(df$start[ii])],])) # sort
+  cat(".");
+  df <- rbind(groupMotifs(df[df$strand=='+',]),groupMotifs(df[df$strand=='-',])) # cluster
+  cat(".");
+  df <- do.call(rbind,tapply(1:nrow(df),df$chr,function(ii) df[ii[order(df$start[ii])],])) # sort again
+  cat(".");
+  # get gene strand information and classify concordance
+  sn <- function(x) { names(x) <- x; x}
+  gene.margin <- 0;
+  df <- do.call(rbind,lapply(sn(intersect(unique(genes$chr),unique(df$chr))),function(chr) {
+    vg <- which(genes$chr==chr);
+    vm <- which(df$chr==chr);
+    ei <- points.within((df$start[vm]+df$end[vm])/2,genes$start[vg]-gene.margin,genes$end[vg]+gene.margin)
+    vi <- which(ei>-1)
+    x <- cbind(df[vm[vi],],gene=genes$gene_name[vg[ei[vi]]],gs=genes$strand[vg[ei[vi]]])
+    x$conc <- x$strand==x$gs
+    x
+  }))
+  cat(". done\n");
+  return(df)
+}
+
+##' read in detailed molecular mapping info from hdf5 file as written out by "-d" option of velocyto.py
+##'
+##' @param fname name of the hdf5 detailed molecular mapping (debug) file, written out by velocyto.py
+##' @param cell.clusters optional cell cluster factor 
+##' @param internal.priming.info optionall internal priming info, as produced by find.ip.sites() function
+##' @param min.exon.count minimal total (dataset-wide) number of molecules for an exon to be considered expressed
+##' @param n.cores number of cores to use
+##' @return a list containing gene structural information data structure ($gene.df, with el,il, nex,nipconc,nipdisc columns corresponding to the log10 exonic length, intronic length, number of exons, numebr of internal concordant and discordant priming sites, respectively), and $info tables from the hdf5 file with an additional per-cluster entry $cluster.feature.counts table showing per-feature (rows) per-cluster (column) molecule counts (if cell.clusters are not supplied $info$cluster.feauture.counts will contain one column, 'all' giving dataset-wide counts)
+##' @export
+read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.info=NULL,min.exon.count=10,n.cores=defaultNCores()) {
+  cat("reading in mapping info from",fname,' ')
+  f <- h5file(fname,mode='r');
+  #list.datasets(f)
+  # read in info tables
+  info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[paste('/info',n,sep='/')][] })
+  info$chrm <- gsub("^chr","",info$chrm)
+  cat(" done\n")
+  if(!is.null(cell.clusters)) {
+    # count abundancies per element for each cell cluster
+    # extract cell names
+    cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/",list.datasets(f),value=T),value=T)))
+    if(!any(names(cell.clusters) %in% cnames)) {
+      warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",paste(cnames[1:3],collapse=' '),"... ]"))
+      cat("parsing out feature counts across all cells ... ")
+      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+      cat("done\n")
+    } else {
+      cat("parsing out info for",length(levels(cell.clusters)),"clusters: [");
+      cluster.feature.counts <- do.call(cbind,tapply(names(cell.clusters),as.factor(cell.clusters),function(ii) {
+        cat(".")
+        tabulate(unlist(lapply(ii,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm))
+      }))
+      cat(". ]. done\n")
+      info$cluster.feature.counts <- cluster.feature.counts;
+    }
+  } else {
+    # combine counts on all cells
+    cat("parsing out feature counts across all cells ... ")
+    info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+    cat("done\n")
+  }
+  h5close(f)
+  
+  # calculate dataset-wide effective gene length and other parameters
+  # attempt to get unique gene names
+  #gchr <- paste(info$features_gene,info$chrm,sep=':')
+  genes <- info$features_gene;
+  
+  if(!is.null(internal.priming.info)) {
+    internal.priming.info$chr <- gsub("^chr","",as.character(internal.priming.info$chr))
+  }
+  
+  t.get.lengthinfo <- function(fc,min.exon.count=10) {
+    #fc <- rowSums(cluster.feature.counts)
+    # find last expressed exon for each gene
+    gdf <- do.call(rbind,mclapply(sn(unique(genes)),function(gene) {
+      ii <- which(genes==gene);
+      exons <- info$is_intron[ii]=='FALSE'
+      # select exons with a valid minimal expression level
+      valid.exons <- fc[ii[exons]]>=min.exon.count
+      # is gene more on one chromosome, ignore the gene
+      if(length(unique(info$chrm[ii]))>1) {
+        valid.exons[valid.exons] <- FALSE;
+      }
+      
+      if(any(valid.exons)) {
+        # number of exons, their lengths
+        valid.exons.sizes <- info$start_end[ii[exons][valid.exons],,drop=F]
+        el <- flatLength(valid.exons.sizes[order(valid.exons.sizes[,1,drop=F],decreasing=FALSE),,drop=F]);
+        # define effective range
+        gene.range <- range(valid.exons.sizes)
+        gene.size <- diff(gene.range)+1
+        rv <- c(el=log10(el+1),il=log10((gene.size-el)+1),nex=nrow(valid.exons.sizes))
+        if(!is.null(internal.priming.info)) {
+          vi <- which(internal.priming.info$chr==info$chrm[ii[1]] & internal.priming.info$start>=gene.range[1] & internal.priming.info$end<=gene.range[2])
+          if(length(vi)>0) {
+            nipconc <- sum(internal.priming.info$conc[vi]);
+            rv <- c(rv,c(nipconc=nipconc,nipdisc=length(vi)-nipconc))
+          } else {
+            rv <- c(rv,c(nipconc=0,nipdisc=0))
+          }
+        }
+        return(rv)
+      } else {
+        return(NULL)
+      }
+    },mc.cores=n.cores))
+  }
+  cat("calculating gene stats ... ")
+  base.df <- t.get.lengthinfo(rowSums(info$cluster.feature.counts),min.exon.count = min.exon.count)
+  cat("done\n")
+  return(list(gene.df=base.df,info=info))
+}
 
 # estimate projected delta given x'=(y-o) - gamma*x solution
 # em - normalized expression matrix

@@ -1,8 +1,8 @@
 Package: velocyto.R
 Type: Package
 Title: RNA velocity estimation in R 
-Version: 0.5 
-Date: 2017-10-10
+Version: 0.6 
+Date: 2018-04-29
 Author: Peter Kharchenko
 Maintainer: Peter Kharchenko <peter_kharchenko@hms.harvard.edu>
 Description: Provides basic routines for estimation of gene-specific transcriptional derivatives and visualization of the resulting velocity patterns.
@@ -18,14 +18,19 @@ Imports: Rcpp (>= 0.12.13),
   cluster,
   stats,
   grDevices,
-  igraph
+  igraph,
+  methods,
+  h5
 Suggests:
   Rtsne,
   BiocGenerics,
+  Biostrings,
   GenomeInfoDb,
   GenomicAlignments,
+  GenomicRanges,
+  IRanges,
+  data.table,
   Rsamtools,
-  edgeR,
-  h5
+  edgeR
 LinkingTo: Rcpp, RcppArmadillo
 RoxygenNote: 6.0.1

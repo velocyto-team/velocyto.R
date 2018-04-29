@@ -130,6 +130,29 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// flatLength
+double flatLength(NumericMatrix m);
+RcppExport SEXP _velocyto_R_flatLength(SEXP mSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type m(mSEXP);
+    rcpp_result_gen = Rcpp::wrap(flatLength(m));
+    return rcpp_result_gen;
+END_RCPP
+}
+// groupMotifs
+DataFrame groupMotifs(DataFrame df, int msize);
+RcppExport SEXP _velocyto_R_groupMotifs(SEXP dfSEXP, SEXP msizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< DataFrame >::type df(dfSEXP);
+    Rcpp::traits::input_parameter< int >::type msize(msizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(groupMotifs(df, msize));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_velocyto_R_points_within2", (DL_FUNC) &_velocyto_R_points_within2, 6},
@@ -141,6 +164,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_velocyto_R_colEuclid", (DL_FUNC) &_velocyto_R_colEuclid, 3},
     {"_velocyto_R_embArrows", (DL_FUNC) &_velocyto_R_embArrows, 4},
     {"_velocyto_R_expectedExpressionShift", (DL_FUNC) &_velocyto_R_expectedExpressionShift, 5},
+    {"_velocyto_R_flatLength", (DL_FUNC) &_velocyto_R_flatLength, 1},
+    {"_velocyto_R_groupMotifs", (DL_FUNC) &_velocyto_R_groupMotifs, 2},
     {NULL, NULL, 0}
 };
 

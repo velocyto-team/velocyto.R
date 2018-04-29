@@ -173,3 +173,67 @@ arma::mat  expectedExpressionShift(const arma::mat& e, const arma::sp_mat& tp, i
       
   return(rm);
 }
+
+// calculates total length of the segments (m has two columns - start and end positions of the segments)
+// discounting the overlap. m must be sorted with respect to the first (start) column position.
+// [[Rcpp::export]]
+double flatLength(NumericMatrix m) {
+  double totsize=0;
+  double lastEnd=0;
+  double lastBegin=1;
+  for(int i=0;i<m.nrow();i++) {
+    if(m(i,0) > lastEnd) { // new block
+      totsize+=lastEnd-lastBegin+1;
+      lastEnd=m(i,1);
+      lastBegin=m(i,0);
+    } else { // continuing old block
+      if(m(i,1)>lastEnd) { lastEnd=m(i,1); }
+    }
+  }
+  totsize+=lastEnd-lastBegin+1; // push in final block
+  return(totsize);
+}
+
+
+// group overlapping motifs, keeping track of the scores
+// note: df must be sorted
+// [[Rcpp::export]]
+DataFrame groupMotifs(DataFrame df,int msize=1) {
+  CharacterVector chr = df["chr"];
+  IntegerVector s = df["start"];
+  IntegerVector e = df["end"];
+  CharacterVector name = df["name"];
+  NumericVector score = df["score"];
+  CharacterVector strand = df["strand"];
+  std::vector<int> cs,ce,ci;
+  std::vector<double> cscore;
+  std::string rchr(chr[0]);
+  int rs=0;
+  std::string ichr;
+  double maxScore=-1;
+  for(int i=1;i<s.size();i++) {
+    ichr=chr[i];
+    if(rchr!=ichr || s[i]-e[i-1] >=msize) { // end block
+      cs.push_back(s[rs]); ce.push_back(e[i-1]);
+      ci.push_back(rs);
+      cscore.push_back(maxScore);
+      rs=i; rchr=ichr; maxScore=-1;
+    }
+    if(score[i]>maxScore) { maxScore=score[i]; }
+  }
+  // final check
+  if(rs!=s.size()-1) {
+    cs.push_back(s[rs]); ce.push_back(e[s.size()-1]); ci.push_back(rs); cscore.push_back(maxScore);
+  }
+  CharacterVector cchr(ci.size());
+  CharacterVector cstrand(ci.size());
+  CharacterVector cname(ci.size());
+  for(int i=0;i<ci.size();i++) {
+    cchr[i]=chr[ci[i]];
+    cstrand[i]=strand[ci[i]];
+    cname[i]=name[ci[i]];
+  }
+  //DataFrame rdf = DataFrame::create( Named("chr")=cchr, Named("start") = cs , Named("end") = ce, Named("name")=cname, Named("score")=cscore,Named("strand")=cstrand);
+  DataFrame rdf = DataFrame::create(Named("chr")=cchr, Named("start") = cs , Named("end") = ce, Named("name")=cname, Named("score")=cscore, Named("strand")=cstrand);
+  return(rdf);
+}

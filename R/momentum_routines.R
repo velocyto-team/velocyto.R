@@ -253,18 +253,47 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     
     # min/max fit
     if(!is.null(fit.quantile)) {
-      eq <- quantile(df$e,p=c(fit.quantile,1-fit.quantile))
-      pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
-      if(!is.null(smat)) { # use smat offset
+      if(diagonal.quantiles) {
+        # determine maximum ranges 
+        emax <- quantile(df$e,p=0.99)
+        nmax <- quantile(df$n,p=0.99)
+        if(emax==0) emax <- max(max(df$e),1e-3)
+        if(nmax==0) nmax <- max(max(df$n),1e-3)
+        x <- df$e/emax + df$n/nmax;
+        eq <- quantile(x,p=c(fit.quantile,1-fit.quantile))
+        if(!is.null(smat)) { # will use smat offset, so disregard lower quantile
+          pw <- as.numeric(x>=eq[2])
+        } else {
+          pw <- as.numeric(x>=eq[2] | x<=eq[1])
+        }
+      } else {
+        eq <- quantile(df$e,p=c(fit.quantile,1-fit.quantile))
+        if(!is.null(smat) || zero.offset) { # will use smat offset, so disregard lower quantile
+          pw <- as.numeric(df$e>=eq[2])
+        } else {
+          pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
+        }
+      }
+
+      if(!is.null(smat) || zero.offset) { # use smat offset
         d <- lm(n~e+offset(o)+0,data=df,weights=pw);
       } else {
         d <- lm(n~e,data=df,weights=pw)
       }
-    }
+
+      ## eq <- quantile(df$e,p=c(fit.quantile,1-fit.quantile))
+      ## pw <- as.numeric(df$e>=eq[2] | df$e<=eq[1])
+      ## if(!is.null(smat)) { # use smat offset
+      ##   d <- lm(n~e+offset(o)+0,data=df,weights=pw);
+      ## } else {
+      ##   d <- lm(n~e,data=df,weights=pw)
+      ## }
+    } 
     
     
     df <- df[order(df$e,decreasing=T),]; 
     lines(df$e,predict(d,newdata=df),lty=2,col=2)
+
 
     if(!is.null(cell.emb)) {
       plot(cell.emb[cc,],pch=21,col=ac(1,alpha=0.2),bg=val2col(resid(d)[cc],gradientPalette=residual.gradient),cex=0.8,xlab='',ylab='',main=paste(gn,'resid'),axes=F); box();
@@ -360,7 +389,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     conv.nmat.norm <- t(t(conv.nmat)/conv.nmat.cs)
     # estimate gamma
     cat("re-estimating gamma of individual genes ... ")
-   
+    
     am <- conv.nmat.norm[rownames(mval),]-offset; am[am<0] <- 0;
     fm <- log2(am) - mval - log2(conv.emat.norm[rownames(mval),])
     wm <- is.finite(fm)
@@ -565,11 +594,30 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
     conv.emat.norm <- t(t(conv.emat)/conv.emat.cs)
     conv.nmat.norm <- t(t(conv.nmat)/conv.nmat.cs)
   }
-  
+
   # adjust gamma predictions
   cat("re-estimating gamma ... ")
 
   offset <- ko[,'o']
+
+  ### alternative gamma fit procedure
+  ## gammaA <- unlist(mclapply(sn(rownames(mval)),function(gn) {
+  ##   # here we try to optimize k to match the expression change based on mmval
+  ##   df <- data.frame(n=conv.nmat.norm[gn,],e=conv.emat.norm[gn,],m=2^mval[gn,],o=ko[gn,'o'])
+  ##   df$na <- df$n-df$o; df$na[df$na<0] <- 0; # apply offset
+  ##   pc <- mean(df$e)/5; # min count
+  ##   # fitness function, capturing discrepancy in deltaE
+  ##   #f <- function(k) { ep <- (df$e+pc)*df$m - df$e; np <- df$n/k-df$e; sum(sqrt(abs(ep-np))) }
+  ##   f <- function(k) { egt <- exp(-k); ep <- (df$e+pc)*(egt*(1-df$m)+df$m) - df$e; np <- df$e*egt + (df$na)/k*(1-egt)-df$e; sum(sqrt(abs(ep-np))) }
+  ##   # poor man's optimization here, to guide interval methods
+  ##   iv <- 10^seq(-4,2,by=0.1)
+  ##   ivv <- unlist(lapply(iv,f))
+  ##   mi <- which.min(ivv)
+  ##   ov <- optim(iv[mi],f,lower=iv[max(1,mi-2)],upper=iv[min(length(iv),mi+2)],method='L-BFGS-B')
+  ##   if(ov$value<ivv[mi]) { return((ov$par))} else { return((iv[mi]))}
+  ## },mc.cores=n.cores,mc.preschedule=T))
+
+
   am <- conv.nmat.norm[rownames(mmval),]-offset; am[am<0] <- 0;
   fm <- log2(am) - mmval - log2(conv.emat.norm[rownames(mmval),])
   wm <- is.finite(fm)
@@ -2247,7 +2295,7 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
       } else {
         return(NULL)
       }
-    },mc.cores=n.cores))
+    },mc.cores=n.cores,mc.preschedule=TRUE))
   }
   cat("calculating gene stats ... ")
   base.df <- t.get.lengthinfo(rowSums(info$cluster.feature.counts),min.exon.count = min.exon.count)

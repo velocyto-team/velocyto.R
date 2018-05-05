@@ -28,7 +28,7 @@ docker run --name velocyto -it velocyto
 
 ## Tutorials
 
-### [Chromaffin / SMART-seq2](http://pklab.med.harvard.edu/velocyto/notebooks/R/chromaffin.nb.html)
+### [Chromaffin / SMART-seq2](http://pklab.med.harvard.edu/velocyto/notebooks/R/chromaffin2.nb.html)
 The example shows how to annotate SMART-seq2 reads from bam file and estimate RNA velocity.
 
 ### [Dentate Gyrus / loom](http://pklab.med.harvard.edu/velocyto/notebooks/R/DG1.nb.html)

@@ -10,7 +10,7 @@ global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1, smat = NULL,
   min.intron.length = 10^3.5, min.exon.length = 10^2.7,
   top.global.pearson.deviance = 3, cellKNN = NULL, cell.dist = NULL,
   fit.quantile = NULL, zero.offset = NULL, diagonal.quantiles = FALSE,
-  m.pcount = 5, n.cores = defaultNCores())
+  m.pcount = 5, plot.model.fit = FALSE, n.cores = defaultNCores())
 }
 \arguments{
 \item{emat}{- spliced (exonic) count matrix}
@@ -56,6 +56,8 @@ global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1, smat = NULL,
 \item{diagonal.quantiles}{whether diagonal quantile determination should be used (if fit.quantile is specified)}
 
 \item{m.pcount}{- pseudocount to be used in M value calculations (defaults to 5)}
+
+\item{plot.model.fit}{plot gamma values predicted by the structure-bsaed model as a function of gene-relative gamma estimates.}
 
 \item{n.cores}{- number of cores to use}
 }

@@ -463,6 +463,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##' @param zero.offset force gene offsets to be zero (default if smat is not supplied), otherwise estimated from the lower quantile or quantile fit
 ##' @param diagonal.quantiles whether diagonal quantile determination should be used (if fit.quantile is specified)
 ##' @param m.pcount - pseudocount to be used in M value calculations (defaults to 5)
+##' @param plot.model.fit plot gamma values predicted by the structure-bsaed model as a function of gene-relative gamma estimates.
 ##' @param n.cores - number of cores to use
 ##' @return a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
 ##' @examples
@@ -477,7 +478,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##'  
 ##' }
 ##' @export
-global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,n.cores=defaultNCores()) {
+global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,plot.model.fit=FALSE, n.cores=defaultNCores()) {
 
   if(is.null(zero.offset)) zero.offset <- is.null(smat); # set zero offset to true unless we have smat data
   
@@ -533,6 +534,13 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
     km <- mgcv::gam(k~s(il,e)+s(eir)+s(nex),data=df,weights=sqrt(rowSums(emat[rownames(df),])))
   }
   cat(paste0(round((1-km$deviance/km$null.deviance)*100,1),"% deviance explained.\n"))
+
+  if(plot.model.fit) {
+    plot(df$k,predict(km),xlab=expression(paste('log[ gene-relative ',gamma,']')),ylab=expression(paste('log[ structure-based ',gamma,']')),pch=19,cex=0.7,col=adjustcolor(1,alpha=0.2));
+    abline(a=0,b=1,col=2,lty=2)
+    legend(x='bottomright',bty='n',legend=c(paste0(round((1-km$deviance/km$null.deviance)*100,1),"% deviance explained")))
+  }
+  
   
   # generate predictions for all genes
   df <- base.df; # note we're working with log gamma to get good resolution of low values

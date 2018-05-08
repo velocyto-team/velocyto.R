@@ -536,7 +536,7 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   cat(paste0(round((1-km$deviance/km$null.deviance)*100,1),"% deviance explained.\n"))
 
   if(plot.model.fit) {
-    plot(df$k,predict(km),xlab=expression(paste('log[ gene-relative ',gamma,']')),ylab=expression(paste('log[ structure-based ',gamma,']')),pch=19,cex=0.7,col=adjustcolor(1,alpha=0.2));
+    plot(df$k,predict(km),xlab=expression(paste('log[ gene-relative ',gamma,']')),ylab=expression(paste('log[ structure-based ',gamma,']')),pch=19,cex=0.7,col=ac(1,alpha=0.2));
     abline(a=0,b=1,col=2,lty=2)
     legend(x='bottomright',bty='n',legend=c(paste0(round((1-km$deviance/km$null.deviance)*100,1),"% deviance explained")))
   }

@@ -9,10 +9,10 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
   kGenes = 1, old.fit = NULL, mult = 1000,
   min.nmat.smat.correlation = 0.05, min.nmat.emat.correlation = 0.05,
   min.nmat.emat.slope = 0.05, zero.offset = FALSE, deltaT2 = 1,
-  fit.quantile = NULL, show.gene = NULL, do.par = TRUE,
-  cell.dist = NULL, cell.emb = NULL, cell.colors = NULL,
-  expression.gradient = NULL, residual.gradient = NULL,
-  n.cores = defaultNCores(), verbose = TRUE)
+  fit.quantile = NULL, diagonal.quantiles = FALSE, show.gene = NULL,
+  do.par = TRUE, cell.dist = NULL, emat.size = NULL, nmat.size = NULL,
+  cell.emb = NULL, cell.colors = NULL, expression.gradient = NULL,
+  residual.gradient = NULL, n.cores = defaultNCores(), verbose = TRUE)
 }
 \arguments{
 \item{emat}{- spliced (exonic) count matrix}
@@ -31,7 +31,7 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
 
 \item{kGenes}{- number of genes (k) to use in gene kNN pooling}
 
-\item{old.fit}{- optional old result (in this case the slopes and offsets won't be recalculated)}
+\item{old.fit}{- optional old result (in this case the slopes and offsets won't be recalculated, and the same kNN graphs will be used)}
 
 \item{mult}{- library scaling factor (1e6 in case of FPM)}
 
@@ -47,11 +47,17 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
 
 \item{fit.quantile}{perform gamma fit on a top/bottom quantiles of expression magnitudes}
 
+\item{diagonal.quantiles}{whether extreme quantiles should be computed diagonally}
+
 \item{show.gene}{an optional name of a gene for which the velocity estimation details should be shown (instead of estimating all velocities)}
 
 \item{do.par}{whether the graphical device parameters should be reset as part of show.gene (default=TRUE)}
 
 \item{cell.dist}{- cell distance to use in cell kNN pooling calculations}
+
+\item{emat.size}{- pre-calculated cell sizes for the emat (spliced) matrix}
+
+\item{nmat.size}{- pre-calculated cell sizes for the nmat (unspliced) matrix}
 
 \item{cell.emb}{- cell embedding to be used in show.gene function}
 
@@ -66,8 +72,25 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
 \item{verbose}{- output messages about progress}
 }
 \value{
-a list with velocity results, including the current normalized expression state ($current), projected ($projected), unscaled transcriptional change ($deltaE), fit results ($ko, $sfit), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm)
+a list with velocity results, including the current normalized expression state ($current), projected ($projected) over a certain time ($deltaT), unscaled transcriptional change ($deltaE), fit results ($gamma, $ko, $sfit if spanning reads were used), optional cell pooling parameters ($cellKNN, $kCells), kNN-convolved normalized matrices (conv.nmat.norm and conv.emat.norm), library scale ($mult)
 }
 \description{
 Estimate RNA velocity using gene-relative slopes
+}
+\examples{
+\dontrun{
+ # use min/max quantile gamma fit (recommended option when one can afford to do cell kNN smoothing)
+ # The example below uses k=5 cell kNN pooling, and top/bottom 2\% exprssion quantiles
+ # emat and nmat are spliced (exonic) and unspliced (intronic) molecule/read count matirces
+(preferably filtered for informative genes)
+ rvel <- gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02)
+
+ # alternativly, the function can be used to visualize gamma fit and regression for a
+particular gene. here we pass embedding (a matrix/data frame with rows named with cell names,
+and columns corresponding to the x/y coordinates)
+
+ # and cell colors. old.fit is used to save calculation time.
+ gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02,
+    old.fit=rvel,show.gene='Chga',cell.emb=emb,cell.colors=cell.colors)
+}
 }

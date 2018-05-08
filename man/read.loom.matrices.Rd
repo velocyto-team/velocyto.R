@@ -11,7 +11,7 @@ read.loom.matrices(file)
 \item{file}{loom file name}
 }
 \value{
-a list containing spliced, unspliced and ambiguous matrices
+a list containing spliced, unspliced, ambiguous and spanning matrices
 }
 \description{
 Read in loom matrices of spliced/unpsliced reads as

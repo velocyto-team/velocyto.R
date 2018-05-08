@@ -9,7 +9,8 @@ global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1, smat = NULL,
   deltaT2 = 1, min.gene.conuts = 100, min.gene.cells = 20,
   min.intron.length = 10^3.5, min.exon.length = 10^2.7,
   top.global.pearson.deviance = 3, cellKNN = NULL, cell.dist = NULL,
-  fit.quantile = NULL, m.pcount = 5, n.cores = defaultNCores())
+  fit.quantile = NULL, zero.offset = NULL, diagonal.quantiles = FALSE,
+  m.pcount = 5, plot.model.fit = FALSE, n.cores = defaultNCores())
 }
 \arguments{
 \item{emat}{- spliced (exonic) count matrix}
@@ -18,7 +19,7 @@ global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1, smat = NULL,
 
 \item{vel}{- initial gene-relative velocity estimates (output of the gene.relative.velocity.estimates function)}
 
-\item{base.df}{gene structure information data frame ($base.df in output of read.smartseq2.bams), containing the following columns ($il - total intronic length in log10(length+1) scale; $el - total exonic length; $nex - number of expressed (above some low threshold) exons)}
+\item{base.df}{gene structure information data frame ($gene.df in output of read.gene.mapping.info()), containing the following columns ($il - total intronic length in log10(length+1) scale; $el - total exonic length; $nex - number of expressed (above some low threshold) exons; as well as optional $nipconc/$nipdisc giving number of concordant and discordant internal priming sites)}
 
 \item{deltaT}{- amount of time to project the cell forward}
 
@@ -50,7 +51,13 @@ global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1, smat = NULL,
 
 \item{fit.quantile}{perform gamma fit on a top/bottom quantiles of expression magnitudes}
 
+\item{zero.offset}{force gene offsets to be zero (default if smat is not supplied), otherwise estimated from the lower quantile or quantile fit}
+
+\item{diagonal.quantiles}{whether diagonal quantile determination should be used (if fit.quantile is specified)}
+
 \item{m.pcount}{- pseudocount to be used in M value calculations (defaults to 5)}
+
+\item{plot.model.fit}{plot gamma values predicted by the structure-bsaed model as a function of gene-relative gamma estimates.}
 
 \item{n.cores}{- number of cores to use}
 }
@@ -59,4 +66,16 @@ a list with velocity results, including the current normalized expression state 
 }
 \description{
 Structure-based gene velocity estimation
+}
+\examples{
+\dontrun{
+ # emat / nmat are the spliced/unpsliced matrices respectively
+ # rvel is a gene-relative velocity estimate
+ # base.df (here dat$base.df) is a gene information table.
+ #   For SMART-seq2, it is part of the \\code{\\link{read.smartseq2.bams}} output.
+ #   For droplet data, this info can be obtained \\code{\\link{}}
+ gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
+       kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
+ 
+}
 }

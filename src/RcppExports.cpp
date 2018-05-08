@@ -102,16 +102,54 @@ BEGIN_RCPP
 END_RCPP
 }
 // embArrows
-arma::mat embArrows(const arma::mat& emb, const arma::mat& tp, double arrowScale, int nthreads);
+arma::mat embArrows(const arma::mat& emb, const arma::sp_mat& tp, double arrowScale, int nthreads);
 RcppExport SEXP _velocyto_R_embArrows(SEXP embSEXP, SEXP tpSEXP, SEXP arrowScaleSEXP, SEXP nthreadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::mat& >::type emb(embSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type tp(tpSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type tp(tpSEXP);
     Rcpp::traits::input_parameter< double >::type arrowScale(arrowScaleSEXP);
     Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
     rcpp_result_gen = Rcpp::wrap(embArrows(emb, tp, arrowScale, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// expectedExpressionShift
+arma::mat expectedExpressionShift(const arma::mat& e, const arma::sp_mat& tp, int scale, double pseudocount, int nthreads);
+RcppExport SEXP _velocyto_R_expectedExpressionShift(SEXP eSEXP, SEXP tpSEXP, SEXP scaleSEXP, SEXP pseudocountSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type e(eSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type tp(tpSEXP);
+    Rcpp::traits::input_parameter< int >::type scale(scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type pseudocount(pseudocountSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(expectedExpressionShift(e, tp, scale, pseudocount, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// flatLength
+double flatLength(NumericMatrix m);
+RcppExport SEXP _velocyto_R_flatLength(SEXP mSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type m(mSEXP);
+    rcpp_result_gen = Rcpp::wrap(flatLength(m));
+    return rcpp_result_gen;
+END_RCPP
+}
+// groupMotifs
+DataFrame groupMotifs(DataFrame df, int msize);
+RcppExport SEXP _velocyto_R_groupMotifs(SEXP dfSEXP, SEXP msizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< DataFrame >::type df(dfSEXP);
+    Rcpp::traits::input_parameter< int >::type msize(msizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(groupMotifs(df, msize));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -125,6 +163,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_velocyto_R_colDeltaCorLog10", (DL_FUNC) &_velocyto_R_colDeltaCorLog10, 4},
     {"_velocyto_R_colEuclid", (DL_FUNC) &_velocyto_R_colEuclid, 3},
     {"_velocyto_R_embArrows", (DL_FUNC) &_velocyto_R_embArrows, 4},
+    {"_velocyto_R_expectedExpressionShift", (DL_FUNC) &_velocyto_R_expectedExpressionShift, 5},
+    {"_velocyto_R_flatLength", (DL_FUNC) &_velocyto_R_flatLength, 1},
+    {"_velocyto_R_groupMotifs", (DL_FUNC) &_velocyto_R_groupMotifs, 2},
     {NULL, NULL, 0}
 };
 

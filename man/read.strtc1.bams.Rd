@@ -14,9 +14,12 @@ read.strtc1.bams(bam.files, annotation.file, min.exon.count = 100,
 
 \item{min.exon.count}{minimum number of molecules (across all cells) for the exon to be considered expressed}
 
-\item{n.cores}{}
+\item{n.cores}{number of cores to use}
 
 \item{min.umi.reads}{minimum number of read required per UMI/gene combination to be counted (defaults to 1)}
+}
+\value{
+a list structure analogous to the return of read.smartseq2.bams(), counting molecules instead of reads.
 }
 \description{
 Read in cell-specific bam files for STRT/C1

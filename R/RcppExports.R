@@ -33,3 +33,15 @@ embArrows <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
     .Call('_velocyto_R_embArrows', PACKAGE = 'velocyto.R', emb, tp, arrowScale, nthreads)
 }
 
+expectedExpressionShift <- function(e, tp, scale = 1L, pseudocount = 1.0, nthreads = 1L) {
+    .Call('_velocyto_R_expectedExpressionShift', PACKAGE = 'velocyto.R', e, tp, scale, pseudocount, nthreads)
+}
+
+flatLength <- function(m) {
+    .Call('_velocyto_R_flatLength', PACKAGE = 'velocyto.R', m)
+}
+
+groupMotifs <- function(df, msize = 1L) {
+    .Call('_velocyto_R_groupMotifs', PACKAGE = 'velocyto.R', df, msize)
+}
+

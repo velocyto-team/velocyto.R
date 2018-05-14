@@ -2237,7 +2237,7 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
   cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/",list.datasets(f),value=T),value=T)))
   if(!is.null(cell.clusters)) {
     # count abundancies per element for each cell cluster
-    
+    cell.clusters <- as.factor(cell.clusters)
     if(!any(names(cell.clusters) %in% cnames)) {
       warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",paste(cnames[1:3],collapse=' '),"... ]"))
       cat("parsing out feature counts across all cells ... ")

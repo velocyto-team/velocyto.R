@@ -2099,7 +2099,7 @@ t.get.projected.cell2 <- function(em,cellSize,deltae,mult=1e3,delta=1) {
 read.loom.matrices <- function(file) {
   f <- h5::h5file(file,mode='r');
   cells <- f["col_attrs/CellID"][];
-  genes <- f["row_attrs/Gene"][];
+  genes <- f["row_attrs/Accession"][];
   dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
   if("/layers/spanning" %in% h5::list.datasets(f)) {
     dl <- c(dl,c(spanning="/layers/spanning"))

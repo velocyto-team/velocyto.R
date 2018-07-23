@@ -2126,7 +2126,7 @@ read.loom.matrices <- function(file) {
 ##' @examples
 ##' \dontrun{
 ##' library(BSgenome.Mmusculus.UCSC.mm10)
-##' ip.mm10 <- t.generate.ip.mask('refdata-cellranger-mm10-1.2.0/genes/genes.gtf',Mmusculus,'mm10')
+##' ip.mm10 <- find.ip.sites('refdata-cellranger-mm10-1.2.0/genes/genes.gtf',Mmusculus,'mm10')
 ##' }
 ##' @export
 find.ip.sites <- function(gtf.file,genome,genome.name,w=0.9,n=15,min.score='80%',add.chr=TRUE) {

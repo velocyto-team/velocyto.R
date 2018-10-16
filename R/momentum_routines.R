@@ -1334,13 +1334,13 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
 ##' @return transition probability matrix
 ##' @export
 show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.colors=NULL, sigma=NA, beta=1, arrow.scale=1, scale='log', nPcs=NA, arrow.lwd=1, xlab="", ylab="", control.for.neighborhood.density=TRUE, ntop.trajectories=1, do.par=T, show.cell.arrows=NULL, show.cell.trajectories=NULL, show.trajectories=FALSE, show.all.trajectories=FALSE, show.cell.diffusion.posterior=NULL, show.grid.flow=FALSE, diffusion.steps=10, cell.dist=NULL, trajectory.spline.shape=1, cell.color.alpha=0.5, n.cores=defaultNCores(), n.trajectory.clusters=10, ...) {
+  em <- vel$current; emn <- vel$projected;
   if(is.null(cell.colors)) { cell.colors <- ac(rep(1,ncol(em)),alpha=0.3); names(cell.colors) <- colnames(em) }
   if(do.par) par(mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
   cc <- 'white'
   if(is.null(show.cell.arrows) && is.null(show.cell.diffusion.posterior)) { cc <- cell.colors[rownames(emb)] }
   plot(emb,bg=cc,pch=21,col=ac(1,alpha=cell.color.alpha), xlab=xlab, ylab=ylab, ...);
   
-  em <- vel$current; emn <- vel$projected;
   ccells <- intersect(rownames(emb),colnames(em));
   emn <- emn[,ccells]; em <- em[,ccells]; emb <- emb[ccells,]
   

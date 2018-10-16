@@ -2094,21 +2094,47 @@ t.get.projected.cell2 <- function(em,cellSize,deltae,mult=1e3,delta=1) {
 ##' prepared by velocyto.py CLI
 ##'
 ##' @param file loom file name
+##' @param engine Use hdf5r or h5 to import loom file
 ##' @return a list containing spliced, unspliced, ambiguous and spanning matrices
 ##' @export
-read.loom.matrices <- function(file) {
-  f <- h5::h5file(file,mode='r');
-  cells <- f["col_attrs/CellID"][];
-  genes <- f["row_attrs/Gene"][];
-  dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
-  if("/layers/spanning" %in% h5::list.datasets(f)) {
-    dl <- c(dl,c(spanning="/layers/spanning"))
+read.loom.matrices <- function(file, engine='hdf5r') {
+  if (engine == 'h5'){
+    cat('reading loom via h5...')
+    f <- h5::h5file(file,mode='r');
+    cells <- f["col_attrs/CellID"][];
+    genes <- f["row_attrs/Gene"][];
+    dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
+    if("/layers/spanning" %in% h5::list.datasets(f)) {
+      dl <- c(dl,c(spanning="/layers/spanning"))
+    }
+    dlist <- lapply(dl,function(path) {
+      m <- as(f[path][],'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
+    })
+    h5::h5close(f)
+    return(dlist)
+  } else if (engine == 'hdf5r') {
+    cat('reading loom file via hdf5r... ')
+    f <- hdf5r::H5File$new(file, mode='r')
+    cells <- f[["col_attrs/CellID"]][]
+    genes <- f[["row_attrs/Gene"]][]
+    dl <- c(spliced="layers/spliced",
+            unspliced="layers/unspliced",
+            ambiguous="layers/ambiguous")
+    if("layers/spanning" %in% hdf5r::list.datasets(f)) {
+      dl <- c(dl, c(spanning="layers/spanning"))
+    }
+    dlist <- lapply(dl, function(path) {
+      m <- as(t(f[[path]][,]),'dgCMatrix')
+      rownames(m) <- genes; colnames(m) <- cells;
+      return(m)
+    })
+    f$close_all()
+    return(dlist)
   }
-  dlist <- lapply(dl,function(path) {
-    m <- as(f[path][],'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
-  })
-  h5::h5close(f)
-  return(dlist);
+  else {
+    warning('Unknown engine. Use hdf5r or h5 to read loom file.')
+    return(list())
+  }
 }
 
 

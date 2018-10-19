@@ -6,7 +6,7 @@
 \usage{
 read.gene.mapping.info(fname, cell.clusters = NULL,
   internal.priming.info = NULL, min.exon.count = 10,
-  n.cores = defaultNCores())
+  n.cores = defaultNCores(), engine = "hdf5r")
 }
 \arguments{
 \item{fname}{name of the hdf5 detailed molecular mapping (debug) file, written out by velocyto.py}
@@ -18,6 +18,8 @@ read.gene.mapping.info(fname, cell.clusters = NULL,
 \item{min.exon.count}{minimal total (dataset-wide) number of molecules for an exon to be considered expressed}
 
 \item{n.cores}{number of cores to use}
+
+\item{engine}{use either h5 or hdf5r to read the input hdf5 file}
 }
 \value{
 a list containing gene structural information data structure ($gene.df, with el,il, nex,nipconc,nipdisc columns corresponding to the log10 exonic length, intronic length, number of exons, numebr of internal concordant and discordant priming sites, respectively), and $info tables from the hdf5 file with an additional per-cluster entry $cluster.feature.counts table showing per-feature (rows) per-cluster (column) molecule counts (if cell.clusters are not supplied $info$cluster.feauture.counts will contain one column, 'all' giving dataset-wide counts)

@@ -14,13 +14,14 @@
 #//' @importFrom GenomicRanges GRanges
 #//' @importFrom IRanges IRanges
 #//' @importFrom data.table fread
+#' @importFrom h5 h5file h5close list.datasets
 #' @importFrom methods as
 NULL
 
 # optional imports
 # @import igraph
 # @importFrom abind abind
-# @import hdf5r
+# @import h5
 # @importFrom edgeR calcNormFactors
 # @import GenomicAlignments
 # @import Rsamtools
@@ -69,7 +70,7 @@ NULL
 ##'  # alternativly, the function can be used to visualize gamma fit and regression for a
 ##' particular gene. here we pass embedding (a matrix/data frame with rows named with cell names,
 ##' and columns corresponding to the x/y coordinates)
-##'
+##' 
 ##'  # and cell colors. old.fit is used to save calculation time.
 ##'  gene.relative.velocity.estimates(emat,nmat,deltaT=1,kCells = 5,fit.quantile = 0.02,
 ##'     old.fit=rvel,show.gene='Chga',cell.emb=emb,cell.colors=cell.colors)
@@ -105,14 +106,14 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       cat("done\n")
     }
   }
-
+  
   # size estimates
   if(is.null(emat.size)) { emat.size <- Matrix::colSums(emat); }
   if(is.null(nmat.size)) { nmat.size <- Matrix::colSums(nmat); }
   emat.cs <- emat.size[colnames(emat)]/mult;
   nmat.cs <- nmat.size[colnames(nmat)]/mult;
-
-
+  
+  
   emat.log.norm <- log(as.matrix(t(t(emat)/emat.cs))+pcount);
   if(!is.null(old.fit)) { cellKNN <- old.fit[['cellKNN']]}
   knn.maxl <- 1e2
@@ -140,9 +141,9 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     conv.emat <- emat; conv.nmat <- nmat; cellKNN <- NULL;
     conv.emat.cs <- emat.cs; conv.nmat.cs <- nmat.cs;
   }
-
+  
   #browser()
-
+  
   # size-normalized counts
   conv.emat.norm <- t(t(conv.emat)/conv.emat.cs)
   conv.nmat.norm <- t(t(conv.nmat)/conv.nmat.cs)
@@ -153,7 +154,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 
   if(kGenes>1) {
     if(!is.null(old.fit) && !is.null(old.fit$geneKNN)) {
-      geneKNN <- old.fit$geneKNN;
+      geneKNN <- old.fit$geneKNN; 
     } else {
       cat("gene kNN ... ")
       geneKNN <- balancedKNN(t(log(as.matrix(conv.emat.norm)+pcount)),kGenes,kGenes*1.2e3,n.threads=n.cores); diag(geneKNN) <- 1;
@@ -168,12 +169,12 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     cat("convolving matrices ... ")
     conv.emat.norm <- scaledGeneKNN %*% conv.emat.norm;
     conv.nmat.norm <- scaledGeneKNN %*% conv.nmat.norm;
-
+    
     cat("done\n")
   }
-
+  
   if(!is.null(smat)) {
-
+    
     if(kCells>1) {
       conv.smat <- smat %*% cellKNN[colnames(smat),colnames(smat)]
     } else {
@@ -184,8 +185,8 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 
     if(kGenes>1) {
       conv.smat.norm <- scaledGeneKNN %*% conv.smat.norm;
-    }
-
+    } 
+    
     # use spanning reads to fit offset for the intronic reads, test correlation
     if(is.null(old.fit)) {
       cat("fitting smat-based offsets ... ")
@@ -196,7 +197,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
         return(c(o=pmax(0,as.numeric(sd$coef[1])),s=as.numeric(sd$coef[2]),r=r))
       },mc.cores=n.cores,mc.preschedule=T)))
       cat("done\n")
-
+      
     } else {
       sfit <- old.fit$sfit;
     }
@@ -226,7 +227,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       #zi <- emat[gn,steady.state.cells]==0;
       if(!zero.offset) { zi <- df$e<1/conv.emat.cs[steady.state.cells]; if(any(zi)) { o <- sum(df$n[zi])/(sum(zi)+1)} }
       df$o <- o;
-
+      
       #table(zi)
       # if(any(zi)) {
       #   do <- lm(n~e,data=df[zi,])
@@ -234,26 +235,26 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       #   df$o <- max(0,do$coefficients[1])
       # }
 
-
+      
     }
-
-
+    
+    
     #browser()
     d <- lm(n~e+offset(o)+0,data=df,weights=df$e^4+df$n^4);
     cell.col <- ac(rep(1,nrow(df)),alpha=0.1); names(cell.col) <- rownames(df)
-    if(!is.null(cell.colors)) {
-      cc <- intersect(names(cell.colors),rownames(df));
+    if(!is.null(cell.colors)) { 
+      cc <- intersect(names(cell.colors),rownames(df)); 
       cell.col[cc] <- cell.colors[cc]
     }
     plot(df$e,df$n,pch=21,bg=ac(cell.col,alpha=0.3),col=ac(1,alpha=0.1),cex=0.8,xlab='s',ylab='u',main=paste(gn,'fit'))
     if(!is.null(do)) {
       abline(do,lty=2,col=8)
     }
-
+    
     # min/max fit
     if(!is.null(fit.quantile)) {
       if(diagonal.quantiles) {
-        # determine maximum ranges
+        # determine maximum ranges 
         emax <- quantile(df$e,p=0.99)
         nmax <- quantile(df$n,p=0.99)
         if(emax==0) emax <- max(max(df$e),1e-3)
@@ -287,10 +288,10 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
       ## } else {
       ##   d <- lm(n~e,data=df,weights=pw)
       ## }
-    }
-
-
-    df <- df[order(df$e,decreasing=T),];
+    } 
+    
+    
+    df <- df[order(df$e,decreasing=T),]; 
     lines(df$e,predict(d,newdata=df),lty=2,col=2)
 
 
@@ -299,7 +300,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     }
     if(kGenes>1) { return(invisible(geneKNN)) } else { return(1) }
   }
-
+  
   cat("fitting gamma coefficients ... ")
   if(is.null(old.fit)) {
     ko <- data.frame(do.call(rbind,parallel::mclapply(sn(rownames(conv.emat.norm)),function(gn) {
@@ -318,7 +319,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
         return(c(o=df$o[1],g=as.numeric(coef(d)[1]),r=cor(df$e,df$n,method='spearman')))
       } else {
         if(diagonal.quantiles) {
-          # determine maximum ranges
+          # determine maximum ranges 
           emax <- quantile(df$e,p=0.99)
           nmax <- quantile(df$n,p=0.99)
           if(emax==0) emax <- max(max(df$e),1e-3)
@@ -347,7 +348,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
           return(c(o=as.numeric(coef(d)[1]),g=as.numeric(coef(d)[2]),r=cor(df$e,df$n,method='spearman')))
         }
       }
-
+        
     },mc.cores=n.cores,mc.preschedule=T)))
     ko <- na.omit(ko)
     cat("done. succesfful fit for",nrow(ko),"genes\n")
@@ -360,12 +361,12 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     ko <- ko[vi,]
     if(!all(vi)) cat("filtered out",sum(!vi),"out of",length(vi),"genes due to low nmat-smat correlation\n")
   }
-
+  
   full.ko <- ko;
   vi <- ko$r>min.nmat.emat.correlation
   if(!all(vi)) cat("filtered out",sum(!vi),"out of",length(vi),"genes due to low nmat-emat correlation\n")
   ko <- ko[vi,]
-
+  
   vi <- ko$g>min.nmat.emat.slope
   if(!all(vi)) cat("filtered out",sum(!vi),"out of",length(vi),"genes due to low nmat-emat slope\n")
   ko <- ko[vi,]
@@ -378,31 +379,31 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
     npred[npred<0] <- 0;
     mval <- log2(conv.nmat.norm[names(gamma),]+pcount) - log2(npred+pcount);
     resl$mval <- mval;
-
+    
     #resl$conv.deltaE <- t.get.projected.delta(conv.emat.norm,conv.nmat.norm,gamma,offset=offset,delta=deltaT)
     #resl$conv.projected <- t.get.projected.cell2(conv.emat.norm,emat.size,as.matrix(resl$conv.deltaE),mult = mult,delta=deltaT2);
     #resl$conv.projected[resl$conv.projected<0] <- 0;
-
+    
     # switch back to non-gene-kNN conv.* matrices
     conv.emat.norm <- t(t(conv.emat)/conv.emat.cs)
     conv.nmat.norm <- t(t(conv.nmat)/conv.nmat.cs)
     # estimate gamma
     cat("re-estimating gamma of individual genes ... ")
-
+    
     am <- conv.nmat.norm[rownames(mval),]-offset; am[am<0] <- 0;
     fm <- log2(am) - mval - log2(conv.emat.norm[rownames(mval),])
     wm <- is.finite(fm)
     fm[!is.finite(fm)] <- 0;
     gammaA <- 2^(rowSums(fm * wm)/rowSums(wm))
     gammaA <- gammaA[is.finite(gammaA)];
-
-
+ 
+    
     gamma <- gammaA;
     cat("done\n")
 
-
+    
     # can estimate deltaE from the mval
-    cat("calculating RNA velocity shift ... ")
+    cat("calculating RNA velocity shift ... ")  
     # estimate delta from M value
     deltaE <- t.get.projected.delta.from.log2ratio(em=conv.emat.norm,gamma=gamma,r=mval,delta=deltaT)
     #deltaE <- t.get.projected.delta2(conv.emat.norm,conv.nmat,conv.nmat.cs,gamma,offset=offset,delta=deltaT)
@@ -412,24 +413,24 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
   }
 
   resl$gamma <- gamma;
-
+    
   cat("done\n")
   cat("calculating extrapolated cell state ... ")
 
-
+ 
   # reduced cell normalization (only genes for which momentum was estimated)
   emat.norm <- emat[rownames(emat) %in% rownames(deltaE),]
   #emat.sz <- Matrix::colSums(emat.norm)/mult;
   #browser()
   emat.sz <- emat.cs;
   emat.norm <- t(t(emat.norm)/(emat.sz));
-
+  
   emn <- t.get.projected.cell2(emat.norm,emat.sz,as.matrix(deltaE),mult = mult,delta=deltaT2);
   #emn <- t.get.projected.cell(emat.norm,as.matrix(deltaE),target.mult = mult,model.mult=mult,delta=deltaT2,size.normalize=FALSE);
-
+  
   #table(emat.norm[,cn]==0)
   #table(emn[,cn]==0)
-
+  
   cat("done\n")
   full.ko$valid <- rownames(full.ko) %in% rownames(ko)
   resl <- c(resl,list(projected=emn,current=emat.norm,deltaE=deltaE,deltaT=deltaT,ko=full.ko,mult=mult,kCells=kCells));
@@ -442,7 +443,7 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##'
 ##' @param emat - spliced (exonic) count matrix
 ##' @param nmat - unspliced (nascent) count matrix
-##' @param vel - initial gene-relative velocity estimates (output of the gene.relative.velocity.estimates function)
+##' @param vel - initial gene-relative velocity estimates (output of the gene.relative.velocity.estimates function) 
 ##' @param base.df gene structure information data frame ($gene.df in output of read.gene.mapping.info()), containing the following columns ($il - total intronic length in log10(length+1) scale; $el - total exonic length; $nex - number of expressed (above some low threshold) exons; as well as optional $nipconc/$nipdisc giving number of concordant and discordant internal priming sites)
 ##' @param deltaT - amount of time to project the cell forward
 ##' @param smat - optional spanning read matrix (used in offset calculations)
@@ -474,31 +475,31 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##'  #   For droplet data, this info can be obtained \code{\link{}}
 ##'  gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
 ##'        kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
-##'
+##'  
 ##' }
 ##' @export
 global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,plot.model.fit=FALSE, n.cores=defaultNCores()) {
 
   if(is.null(zero.offset)) zero.offset <- is.null(smat); # set zero offset to true unless we have smat data
-
+  
   mult <- vel$mult; # use the same library scale as in the supplied relative velocity estimates
   # reconsile gene lists
   gi <- intersect(intersect(rownames(base.df),rownames(emat)),rownames(nmat))
-  emat <- emat[gi,]; nmat <- nmat[gi,];
+  emat <- emat[gi,]; nmat <- nmat[gi,]; 
   base.df <- base.df[gi,]
 
   # do some gene filtering
   vi <- rowSums(emat[rownames(base.df),])>min.gene.conuts & rowSums(emat[rownames(base.df),]>0)>min.gene.cells
   if(!all(vi)) cat("filtered out",sum(!vi),"out of",length(vi),"genes due to low emat levels\n")
   base.df <- base.df[vi,]
-
+  
   vi <- base.df$il>log10(min.intron.length) & base.df$el>log10(min.exon.length) #requiring some minimum intronic and exonic lengths
   if(!all(vi)) cat("filtered out",sum(!vi),"out of",length(vi),"genes due to insufficient exonic or intronic lengths\n")
   base.df <- base.df[vi,]
 
   mult <- vel$mult;
-
-  # do a quick global model of total nascent reads as a function of total exonic reads and gene structural parameters to filter
+  
+  # do a quick global model of total nascent reads as a function of total exonic reads and gene structural parameters to filter 
   # out the genes with very high nascent/exonic ratio - those are likely driven by other transcripts
   df <- data.frame(e=rowSums(emat[rownames(base.df),]), n=rowSums(nmat[rownames(base.df),]), base.df)
   #df$ir <- expr.lstat[rownames(df),'t']/expr.lstat[rownames(df),'i']
@@ -507,19 +508,19 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   gm <- MASS::glm.nb(n~.,data=df,link=log,init.theta=2)
   vi <- resid(gm,type='pearson') <= top.global.pearson.deviance;
   if(!all(vi)) cat("filtered out",sum(!vi),"out of",length(vi),"genes due to excessive nascent counts\n")
-  base.df <- base.df[vi,]
-
+  base.df <- base.df[vi,] 
+  
   # reconcile gene lists and matrices
   gi <- intersect(rownames(base.df),rownames(emat))
-  emat <- emat[gi,]; nmat <- nmat[gi,];
+  emat <- emat[gi,]; nmat <- nmat[gi,]; 
   base.df <- base.df[gi,]
-
+  
   # start with gene-relative slopes
   gamma <- vel$gamma;
   gamma <- gamma[intersect(rownames(base.df),names(gamma))]
   #gamma <- ko$g; offset <- ko$o; names(gamma) <- names(offset) <- rownames(ko);
   cat("using relative slopes for",length(gamma),"genes to fit structure-based model ... ")
-
+  
   df <- data.frame(k=log(gamma),base.df[names(gamma),]); # note we're working with log gamma to get good resolution of low values
   df$eir <- log(((10^df$il)-1)/((10^df$el)-1)) # intronic/exonic ratio
   df$e <- log(rowSums(emat[rownames(df),])) # total gene expression
@@ -527,7 +528,7 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   # fit genome-wide model for the slope, based on the gene structural parameters and the total expression (exonic) magnitude
   if('nipconc' %in% colnames(base.df)) {
     cat("with internal priming info ... ")
-    df <- cbind(df,data.frame(log10(base.df[names(gamma),c("nipconc","nipdisc")]+1)))
+    df <- cbind(df,data.frame(log10(base.df[names(gamma),c("nipconc","nipdisc")]+1))) 
     km <- mgcv::gam(k~s(il,e)+s(eir)+s(nex)+s(nipconc)+s(nipdisc),data=df,weights=sqrt(rowSums(emat[rownames(df),])))
   } else {
     km <- mgcv::gam(k~s(il,e)+s(eir)+s(nex),data=df,weights=sqrt(rowSums(emat[rownames(df),])))
@@ -539,8 +540,8 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
     abline(a=0,b=1,col=2,lty=2)
     legend(x='bottomright',bty='n',legend=c(paste0(round((1-km$deviance/km$null.deviance)*100,1),"% deviance explained")))
   }
-
-
+  
+  
   # generate predictions for all genes
   df <- base.df; # note we're working with log gamma to get good resolution of low values
   df$eir <- log(((10^df$il)-1)/((10^df$el)-1)) # intronic/exonic ratio
@@ -548,7 +549,7 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   cat("predicting gamma ... ")
   sqGammaPred <- predict(km,newdata=df,type='response')
   cat("done\n")
-
+  
   # re-estimate offsets (and cellKNN) using relative fit
   cat("refitting offsets ... ")
   vel2 <- gene.relative.velocity.estimates(emat,nmat,smat=smat,kCells=kCells,kGenes=1,cell.dist=cell.dist,fit.quantile=fit.quantile,zero.offset=zero.offset,diagonal.quantiles=diagonal.quantiles)
@@ -561,11 +562,11 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
     cat("calculating convolved matrices ... ")
     conv.emat <- emat %*% cellKNN[colnames(emat),colnames(emat)]
     conv.nmat <- nmat %*% cellKNN[colnames(nmat),colnames(nmat)]
-    cat("done\n")
+    cat("done\n")    
   } else {
     conv.emat <- emat; conv.nmat <- nmat;
   }
-
+  
   # size estimates
 
   conv.emat.cs <- Matrix::colSums(conv.emat)/mult;
@@ -573,9 +574,9 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   # size-normalized counts
   conv.emat.norm <- t(t(conv.emat)/conv.emat.cs)
   conv.nmat.norm <- t(t(conv.nmat)/conv.nmat.cs)
+  
 
-
-
+  
   # TODO: we want to restrict the set of genes that can be neighbors
   cat("calculating gene knn ... ")
   emm <- log10(as.matrix(conv.emat.norm)+1)
@@ -586,7 +587,7 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   npred <- t(t(conv.emat.norm[names(sqGammaPred),]*exp(as.numeric(sqGammaPred)))*conv.nmat.cs)
   # adjust for offset
   npred <- npred+ko$o
-
+  
   mval <- log2((conv.nmat[rownames(npred),]+m.pcount)/(npred+m.pcount))
   cat("adjusting mval offsets ... ")
   # estimate median M value (log2 observed nascent / expected nascent ratio) across kNN genes
@@ -595,7 +596,7 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
     #x <- apply(mval[gin,],2,median) # works well too
     x <- apply(mval[gin,],2,mean,trim=kGenes.trim)
   },mc.cores=n.cores,mc.preschedule=TRUE))
-
+  
   if(kGenes>1) { # gene-convolved estimation
     # switch back to non-gene-kNN conv.* matrices
     conv.emat.norm <- t(t(conv.emat)/conv.emat.cs)
@@ -633,23 +634,23 @@ global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,k
   gammaA <- gammaA[is.finite(gammaA)];
 
   #plot(log(old.gammaA),log(gammaA)); abline(a=0,b=1,lty=2,col=2);
-
+  
   cat("done\n")
-
+  
   # can estimate deltaE from the mval
-  cat("calculating RNA velocity shift ... ")
+  cat("calculating RNA velocity shift ... ")  
   deltaE <- t.get.projected.delta.from.log2ratio(em=conv.emat.norm,gamma=gammaA,r=mmval,delta=deltaT)
   cat("done\n")
   cat("calculating extrapolated cell state ... ")
   emat.size <- Matrix::colSums(emat)/mult;
-
+  
   em <- as.matrix(t(t(emat)/emat.size))
   em <- em[rownames(em) %in% rownames(deltaE),]
   emn <- t.get.projected.cell2(em,emat.size,as.matrix(deltaE),mult = mult,delta=deltaT2);
   cat("done\n")
   resl <- list(projected=emn,current=em,deltaE=deltaE,deltaT=deltaT,mval=mval,mult=mult,vel2=vel2,gammaA=gammaA);
   return(resl)
-
+  
 }
 
 ##' Filter genes by requirining minimum average expression within at least one of the provided cell clusters
@@ -706,7 +707,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     x1 <- t(t(x1/Matrix::colSums(x1)))*mean(sz);
   }
   # transform
-  if(scale=='log') {
+  if(scale=='log') { 
     cat("log ... ")
     x0.log <- log2(x0+pcount)
     x1.log <- log2(x1+pcount)
@@ -719,35 +720,35 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     x0.log <- x0
     x1.log <- x1
   }
-
+  
   cat("pca ... ")
   cent <- rowMeans(x0.log);
   epc <- pcaMethods::pca(t(x0.log-cent),center=F,nPcs=ifelse(is.na(norm.nPcs),nPcs,norm.nPcs))
-
+  
   if(!is.null(pc.multipliers)) { # apply multipliers (used for flipping the direction of PCs in the plots)
     if(length(pc.multipliers)!=nPcs) stop("pc.multipliers must be a vector equal in length to the number of PCs")
     cat("pc multipliers ... ")
     epc@loadings <- t(t(epc@loadings)*pc.multipliers)
     epc@scores <- scale(epc@completeObs,scale=F,center=T) %*% epc@loadings;
   }
-
+  
   x1.scores <- t(x1.log - cent) %*% epc@loadings
-
+  
   # normalize velocities ...?
   cat("delta norm ... ")
   delta.pcs <- as.matrix(x1.scores-epc@scores)
   if(!is.na(norm.nPcs)) {
     delta.pcs <- delta.pcs/mean(sqrt(rowSums(delta.pcs^2))) # suggested by Gioele, unsure about this ....
   }
-
+  
   # browser()
   # z <- as.matrix(t(x1.log-x0.log)) %*% epc@loadings
-  #
+  # 
   # hist(apply(vel$deltaE,2,mean))
   # summary(apply(vel$deltaE,2,mean))
   # hist(apply(as.matrix(x1.log-x0.log),2,mean))
   # summary(apply(as.matrix(x1.log-x0.log),2,mean))
-  #
+  # 
   # z <- t(as.matrix(vel$deltaE)[rownames(epc@loadings),]) %*%  epc@loadings
   # str(z)
   # str(delta.pcs)
@@ -773,20 +774,20 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     #ppos <- x1.scores[,c((i-1)+1,(i-1)+2)];
     ppos <- pos+delta.pcs[,c((i-1)+1,(i-1)+2)];
     plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=ac(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep=''),  ...); box();
-
+    
     if(show.grid.flow) { # show grid summary of the arrows
       # arrow estimates for each cell
       ars <- data.frame(pos[,1],pos[,2],ppos[,1],ppos[,2])
       colnames(ars) <- c('x0','y0','x1','y1')
       arsd <- data.frame(xd=ars$x1-ars$x0,yd=ars$y1-ars$y0)
       rownames(ars) <- rownames(arsd) <- rownames(pos);
-
+      
       # set up a grid
       rx <- range(c(range(ars$x0),range(ars$x1)))
       ry <- range(c(range(ars$y0),range(ars$y1)))
       gx <- seq(rx[1],rx[2],length.out=grid.n)
       gy <- seq(ry[1],ry[2],length.out=grid.n)
-
+      
       # for each grid point calculate Gaussian-weighted delta average
       if(is.null(grid.sd)) {
         grid.sd <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)/2
@@ -813,14 +814,14 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         cws <- pmax(1,Matrix::colSums(cw));
         gxd <- Matrix::colSums(cw*arsd$xd)/cws
         gyd <- Matrix::colSums(cw*arsd$yd)/cws
-
+        
         al <- sqrt(gxd^2+gyd^2);
         vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
-
+        
         cbind(rep(x,sum(vg)),gy[vg],x+gxd[vg],gy[vg]+gyd[vg])
       }))
       colnames(garrows) <- c('x0','y0','x1','y1')
-
+      
       # plot
       if(fixed.arrow.length) {
         suppressWarnings(arrows(garrows[,1],garrows[,2],garrows[,3],garrows[,4],length=0.05,lwd=arrow.lwd))
@@ -830,13 +831,13 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd)))
       }
       if(plot.grid.points) points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
-
+    
       if(return.details) { # for the p1 app
         # calculate expression shift
         cat("expression shifts .")
         # for individual cells
         es <- as.matrix(epc@loadings[,c((i-1)+1,(i-1)+2)] %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
-
+        
         cat(".");
         gs <- epc@loadings[,c((i-1)+1,(i-1)+2)] %*% rbind(garrows[,3]-garrows[,1],garrows[,4]-garrows[,2])
 
@@ -849,8 +850,8 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         }
         cat(".");
         # velocity for the grid (weight-averaged velocity vectors)
-
-
+        
+        
         gv <- do.call(cbind,parallel::mclapply(gx,function(x) {
           # cell distances (rows:cells, columns: grid points)
           cd <- sqrt(outer(pos[,2],-gy,'+')^2 + (x-pos[,1])^2)
@@ -868,10 +869,10 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
           } else { NULL }
         },mc.cores=n.cores,mc.preschedule=T))
         cat(". done\n")
-
+        
         return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos,epc=epc)))
       }
-
+      
     } else {
       # draw individual arrows
       grid();
@@ -881,7 +882,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   cat("done\n")
   if(return.details) { return(vinfo) }
   return(invisible(list(epc=epc,delta.pcs=delta.pcs)))
-
+  
 }
 ##' Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions
 ##'
@@ -914,7 +915,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
   x0 <- vel$current;
   x1 <- vel$projected;
   if(is.null(cell.colors)) { cell.colors <- ac(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
-
+  
   if(size.norm) {
     # rescale to the same size
     cat("rescaling ... ")
@@ -923,7 +924,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
     x1 <- t(t(x1)/Matrix::colSums(x1))*mean(sz);
   }
   # transform
-  if(scale=='log') {
+  if(scale=='log') { 
     cat("log ... ")
     x0.log <- log2(x0+pcount)
     x1.log <- log2(x1+pcount)
@@ -946,12 +947,12 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
       # normalize velocities ...?
       cat("delta norm ... ")
       delta.pcs <- x1.log-x0.log;
-      if(!is.na(norm.nPcs)){
+      if(!is.na(norm.nPcs)){ 
         delta.pcs <- delta.pcs/mean(sqrt(rowSums(delta.pcs^2))) # ? unsure about this (cell-wise L2 norm)
       }
       x1.log <- x0.log+delta.pcs;
     }
-    # drop extra Pcs
+    # drop extra Pcs 
     x0.log <- t(x0.log[,1:nPcs])
     x1.log <- t(x1.log[,1:nPcs])
   }
@@ -960,7 +961,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
   x0.emb <- emb[1:ncol(x0.log),]
   x1.emb <- emb[-(1:ncol(x0.log)),]
   rownames(x0.emb) <- rownames(x1.emb) <- colnames(x0.log);
-
+  
   cat("delta norm ... ") # again, somewhat unsure about this part
   delta.emb <- x1.emb - x0.emb;
   asize <- rowSums(delta.emb^2);
@@ -968,24 +969,24 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
   # restrict size top top 90% quantile
   delta.emb <- delta.emb/asize * pmin(asize,2*quantile(asize,p=max.arrow.quantile))*arrow.scale;
   delta.emb[no.arrow,] <- 0;
-  cat("done\n")
+  cat("done\n") 
   if(do.par) par(mfrow=c(1,1), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
   plot(x0.emb,bg=cell.colors[rownames(x0.emb)],pch=21,col=ac(1,alpha=0.3),xlab=ylab,ylab=xlab, ... ); box();
-
-
+  
+  
   if(show.grid.flow) { # show grid summary of the arrows
     # arrow estimates for each cell
     ars <- data.frame(x0.emb[,1],x0.emb[,2],x0.emb[,1]+delta.emb[,1],x0.emb[,2]+delta.emb[,2])
     colnames(ars) <- c('x0','y0','x1','y1')
     arsd <- data.frame(xd=ars$x1-ars$x0,yd=ars$y1-ars$y0)
-
+    
     # set up a grid
     cat("grid estimates ... ")
     rx <- range(c(range(ars$x0),range(ars$x1)))
     ry <- range(c(range(ars$y0),range(ars$y1)))
     gx <- seq(rx[1],rx[2],length.out=grid.n)
     gy <- seq(ry[1],ry[2],length.out=grid.n)
-
+    
     # for each grid point calculate Gaussian-weighted delta average
     if(is.null(grid.sd)) {
       grid.sd <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)/2
@@ -999,7 +1000,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
       cws <- pmax(1,Matrix::colSums(cw));
       gxd <- Matrix::colSums(cw*arsd$xd)/cws
       gyd <- Matrix::colSums(cw*arsd$yd)/cws
-
+      
       vg <- gw>=min.grid.cell.mass
       if(any(vg)) {
         suppressWarnings(arrows(rep(x,sum(vg)),gy[vg],x+gxd[vg],gy[vg]+gyd[vg],length=0.05,lwd=arrow.lwd))
@@ -1052,9 +1053,9 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
   celcol <- 'white'
   if(is.null(show.cell)) { celcol <- cell.colors[rownames(emb)] }
   plot(emb,bg=celcol,pch=21,col=ac(1,alpha=cell.border.alpha), xlab=xlab, ylab=ylab, ...);
-
+  
   #plot(emb,bg=cell.colors[rownames(emb)],pch=21,col=ac(1,alpha=0.3), xlab=xlab, ylab=ylab);
-  em <- as.matrix(vel$current);
+  em <- as.matrix(vel$current); 
   ccells <- intersect(rownames(emb),colnames(em));
   em <- em[,ccells]; emb <- emb[ccells,]
   nd <- as.matrix(vel$deltaE[,ccells])
@@ -1067,7 +1068,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
   }
   #vg <- rownames(em) %in% rownames(r)
 
-
+  
   if(is.null(cc)) {
     # cosine projections
     cat("delta projections ... ")
@@ -1110,7 +1111,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
     points(emb[show.cell,1],emb[show.cell,2],pch=3,cex=1,col=1)
     di <- t(t(emb)-emb[i,])
     di <- di/sqrt(Matrix::rowSums(di^2))*arrow.scale; di[i,] <- 0;
-    dir <- Matrix::colSums(di*tp[,i])
+    dir <- Matrix::colSums(di*tp[,i]) 
     dic <- Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0)); # relative to expected kNN center
     dia <- dir-dic;
     #browser()
@@ -1123,7 +1124,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
     cat("calculating arrows ... ")
     arsd <- data.frame(t(embArrows(emb,tp,arrow.scale,n.cores)))
     rownames(arsd) <- rownames(emb);
-
+    
     if(expression.scaling) {
       tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb));
       es <- as.matrix(em %*% tp) -as.matrix(em %*% as.matrix(tpb));
@@ -1131,19 +1132,19 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       #pm <- as.matrix(t(vel$deltaE)/sqrt(colSums(vel$deltaE*vel$deltaE)))[colnames(es),] * (t(es)/sqrt(colSums(es*es)))
       #pl <- pmax(0,apply(pm,1,sum))
       pl <- pmin(1,pmax(0,apply(as.matrix(vel$deltaE[,colnames(es)]) * es, 2, sum)/sqrt(colSums(es*es))))
-
-
+      
+      
       arsd <- arsd * pl;
     }
-
-
+    
+    
     ars <- data.frame(cbind(emb,emb+arsd));
     colnames(ars) <- c('x0','y0','x1','y1')
     colnames(arsd) <- c('xd','yd')
     rownames(ars) <- rownames(emb);
     cat("done\n")
-
-
+    
+    
     if(show.grid.flow) { # show grid summary of the arrows
 
     # set up a grid
@@ -1152,7 +1153,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
     ry <- range(c(range(ars$y0),range(ars$y1)))
     gx <- seq(rx[1],rx[2],length.out=grid.n)
     gy <- seq(ry[1],ry[2],length.out=grid.n)
-
+    
     # for each grid point calculate Gaussian-weighted delta average
     if(is.null(grid.sd)) {
       grid.sd <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)/2
@@ -1166,7 +1167,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       max.grid.arrow.length <- sqrt(sum((par('pin')/c(length(gx),length(gy)))^2))*0.25
       cat("max.grid.arrow.length=",max.grid.arrow.length," ")
     }
-
+    
     garrows <- do.call(rbind,lapply(gx,function(x) {
       # cell distances (rows:cells, columns: grid points)
       cd <- sqrt(outer(emb[,2],-gy,'+')^2 + (x-emb[,1])^2)
@@ -1176,10 +1177,10 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       cws <- pmax(1,Matrix::colSums(cw));
       gxd <- Matrix::colSums(cw*arsd$xd)/cws
       gyd <- Matrix::colSums(cw*arsd$yd)/cws
-
+      
       al <- sqrt(gxd^2+gyd^2);
       vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
-
+      
       cbind(rep(x,sum(vg)),gy[vg],x+gxd[vg],gy[vg]+gyd[vg])
     }))
     colnames(garrows) <- c('x0','y0','x1','y1')
@@ -1194,14 +1195,14 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd)))
     }
     if(plot.grid.points) points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
-
+    
     cat("done\n")
-
+    
     if(return.details) { # for the p1 app
       # calculate expression shift
       cat("expression shifts .")
       # for individual cells
-
+      
       scale.int <- switch(scale,'log'=2,'sqrt'=3,1)
       #es <- expectedExpressionShift(e=as.matrix(em),tp=tp,scale=scale.int,nthreads=n.cores); colnames(es) <- colnames(em); rownames(es) <- rownames(em);
       if(!expression.scaling) { #otherwise it has already been calculated
@@ -1252,14 +1253,14 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
         } else { NULL }
       },mc.cores=n.cores,mc.preschedule=T))
       cat(". done\n")
-
-
+      
+      
       return(invisible(list(tp=tp,cc=cc,garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale)))
     }
-
-
-
-
+    
+    
+    
+    
     } else { # draw individual arrows
       # calculate arrows, draw
       # lapply(1:nrow(emb),function(i) {
@@ -1267,7 +1268,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       #   di <- t(t(emb)-emb[i,])
       #   di <- di/sqrt(Matrix::rowSums(di^2))*arrow.scale; di[i,] <- 0;
       #   di <- Matrix::colSums(di*tp[,i]) - Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0)); # relative to expected kNN center
-      #
+      #   
       #   if(fixed.arrow.length) {
       #     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+di[1],emb[colnames(em)[i],2]+di[2],length=0.05,lwd=arrow.lwd))
       #   } else {
@@ -1275,7 +1276,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       #     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+di[1],emb[colnames(em)[i],2]+di[2],length=min(0.05,ali),lwd=arrow.lwd))
       #   }
       # })
-
+      
       apply(ars,1,function(x) {
         if(fixed.arrow.length) {
           suppressWarnings(arrows(x[1],x[2],x[3],x[4],length=0.05,lwd=arrow.lwd))
@@ -1284,8 +1285,8 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
           suppressWarnings(arrows(x[1],x[2],x[3],x[4],length=min(0.05,ali),lwd=arrow.lwd))
         }
       })
-
-
+      
+      
     }
   }
   return(invisible(list(tp=tp,cc=cc)))
@@ -1300,7 +1301,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
 ##' n=1 will only show arrows for cells that end up being projected closer to some other cell than to the original position
 ##' n=k (k>1) will show an average direction
 ##' Given an expression distance between cells d, and ratio of extrapolated to current expression distances between cells f, the transition probability is calculated as exp(- (d*(f^beta))^2/(2*sigma^2) )
-##'
+##' 
 ##' @param emb embedding to be used for projection
 ##' @param vel velocity result
 ##' @param n neighborhood size (default=30)
@@ -1339,18 +1340,18 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   cc <- 'white'
   if(is.null(show.cell.arrows) && is.null(show.cell.diffusion.posterior)) { cc <- cell.colors[rownames(emb)] }
   plot(emb,bg=cc,pch=21,col=ac(1,alpha=cell.color.alpha), xlab=xlab, ylab=ylab, ...);
-
+  
   ccells <- intersect(rownames(emb),colnames(em));
   emn <- emn[,ccells]; em <- em[,ccells]; emb <- emb[ccells,]
-
+  
   if(scale=='log') {
     cat("log scale ... ")
-    em <- log10(em+1); emn <- log10(emn+1);
+    em <- log10(em+1); emn <- log10(emn+1); 
   } else if(scale=='sqrt') {
     cat("sqrt scale ... ")
     em <- sqrt(em); emn <- sqrt(emn);
   }
-
+  
   if(!is.na(nPcs)) { # run PCA reduction on the em
     cat("reducing to",nPcs,"PCs ... ")
     epc.center <- rowMeans(em);
@@ -1358,17 +1359,17 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     em <- t(epc@scores)
     emn <- t(t(emn - epc.center) %*% epc@loadings)
   }
-
+  
   cat("distance ... ")
   cc <- colEuclid(as.matrix(em),as.matrix(emn))
   cc0 <- colEuclid(as.matrix(em),as.matrix(em))
   cd <- (cc0-cc); # reduction in the Euclidean distance
 
   if(n>nrow(cc)) { n <- nrow(cc) }
-
+  
   # pick reasonable sigma and beta if they weren't provided
   if(is.na(sigma) | is.na(beta)) { mcd <- mean(abs(cd)/cc) }
-  # TODO: adaptive methods for signal
+  # TODO: adaptive methods for signal 
   if(is.na(sigma)) { sigma <- mcd/10 }
   if(is.na(beta)) { beta <- mcd/20 }
   cat("sigma=",round(sigma,3)," beta=",round(beta,3)," transition probs ... ")
@@ -1378,8 +1379,8 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   tp <- exp(- ((cc0*f)^2) / (2*sigma^2))
   np <- exp(- ((cc0)^2) / (2*sigma^2))
 
-
-
+  
+  
 
   if(n<nrow(emb)) {
     if(!is.null(cell.dist)) {
@@ -1409,7 +1410,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     tp <- tp*cell.knn;
     np <- np*cell.knn;
   }
-
+  
   # estimate density of the neighborhood
   tp <- t(t(tp)/Matrix::colSums(tp))
   np <- t(t(np)/Matrix::colSums(np))
@@ -1417,18 +1418,18 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   #tp.nd <- colSums(tp); np.nd <- colSums(np);
   #tp <- tp * np.nd;
 
-  if(control.for.neighborhood.density) {
+  if(control.for.neighborhood.density) { 
     np.f <- Matrix::diag(np);
     tp <- tp*(np.f)
     np <- np*(np.f)
   }
 
-  #diag(tp) <- diag(np) <- 0;
+  #diag(tp) <- diag(np) <- 0;  
   # normalize
   tp <- t(t(tp)/Matrix::colSums(tp))
   np <- t(t(np)/Matrix::colSums(np))
 
-
+  
 
   ## if(diffusion.step.size>1) {
   ##   # bring transition probability to the specified power
@@ -1438,12 +1439,12 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   ##   tp <- t(t(tp)/Matrix::colSums(tp))
   ##   np <- t(t(np)/Matrix::colSums(np))
   ## }
-
+  
   # normalize transition probabilities
   rownames(tp) <- colnames(tp) <- rownames(np) <- colnames(np) <- colnames(em);
   cat("done\n")
-
-
+  
+  
   if(!is.null(show.cell.diffusion.posterior)) {
     i <- match(show.cell.diffusion.posterior,rownames(emb));
     if(is.na(i)) stop(paste('specified cell',i,'is not in the embedding'))
@@ -1451,7 +1452,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities
     rownames(cp) <- colnames(cp) <- rownames(tp);
     ttp <- t(tp);
-
+    
     # run diffusion steps to figure out end positions
     cat("simulating diffusion ... ")
     for(i in 1:diffusion.steps) {
@@ -1470,7 +1471,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     points(emb[i,1],emb[i,2],pch=3,cex=1,col=1)
     di <- t(t(emb)-emb[i,])
     di <- di/sqrt(Matrix::rowSums(di^2))*arrow.scale; di[i,] <- 0;
-    dir <- Matrix::colSums(di*tp[,i])
+    dir <- Matrix::colSums(di*tp[,i]) 
     dic <- Matrix::colSums(di*np[,i]); # relative to the neighborhood
     dia <- dir-dic;
     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+dic[1],emb[colnames(em)[i],2]+dic[2],length=0.05,lwd=1,col='blue'))
@@ -1480,11 +1481,11 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   } else if(show.trajectories) { # show diffusion paths
     cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities
     rownames(cp) <- colnames(cp) <- rownames(tp);
-
+  
     #cpt <- as.array(cp);
     cpl <- list(); cpl[[1]] <- cp;
     #cp <- as.matrix(cp); tp <- as.matrix(tp)
-
+    
     #ep <- as.array(emb)
     ttp <- t(tp);
 
@@ -1503,14 +1504,14 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
 
 
     #cpt <- abind(lapply(cpl,as.matrix),along=3)
-
+    
     # calculate probabilistic trajectories to the final ntop points
-
+    
     # rank final points by probability
     cpo <- t(apply(-cp,1,order))
 
     # graph-based walkback approach
-
+    
     # construct a walkback graph
     trp <- as(ttp,'dgTMatrix')
     cat("constructing path graph ... ")
@@ -1522,7 +1523,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     x <- spMatrix(nrow(cp)*(diffusion.steps+1),nrow(cp)*(diffusion.steps+1),i=x[,1],j=x[,2],x=rep(1,nrow(x)))
     g <- igraph::graph.adjacency(x,mode='directed')
     rm(x); gc();
-
+    
     # find topn trajectories for each cell
     cat("tracing shortest trajectories ... ")
     sps <- parallel::mclapply(1:nrow(cp),function(celli) {
@@ -1550,11 +1551,11 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     spuci <- do.call(cbind,lapply(sps,function(y) do.call(cbind,lapply(y,function(x) all.cells %in% x))))
     usps <- unlist(sps,recursive=F); # will be used in looking up median trajectories in plotting
 
-
+    
     spuci.dist <- as.matrix(dist(t(spuci),method = 'manhattan'))
     spuci.pam <- pam(spuci.dist,n.trajectory.clusters)
     cat("done.\n")
-
+    
     # bezier
     # determine common start/end points
     #plot(emb,bg='white',pch=21,col=ac(1,alpha=cell.color.alpha), xlab=xlab, ylab=ylab);
@@ -1576,14 +1577,14 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
 
     cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities
     rownames(cp) <- colnames(cp) <- rownames(tp);
-
+    
     #cpt <- as.array(cp);
     cpl <- list(); cpl[[1]] <- cp;
     #cp <- as.matrix(cp); tp <- as.matrix(tp)
-
+    
     #ep <- as.array(emb)
     ttp <- t(tp);
-
+    
     # run diffusion steps to figure out end positions
     cat("simulating diffusion ... ")
     for(i in 1:diffusion.steps) {
@@ -1596,10 +1597,10 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     cpo <- t(apply(-cp,1,order))
 
     # graph-based walkback approach
-
+    
     # construct a walkback graph
     trp <- as(ttp,'dgTMatrix')
-
+    
     cat("constructing path graph ... ")
     x <- do.call(rbind,lapply(1:(diffusion.steps+1),function(i) {
       cbind(i=trp@i+1 + (i-1)*nrow(cp), # current time step
@@ -1609,12 +1610,12 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     x <- spMatrix(nrow(cp)*(diffusion.steps+1),nrow(cp)*(diffusion.steps+1),i=x[,1],j=x[,2],x=rep(1,nrow(x)))
     g <- igraph::graph.adjacency(x,mode='directed')
     rm(x); gc();
-
+    
     # find topn trajectories for each cell
     cat("tracing shortest trajectories ... ")
     top.desti <- order(cp[celli,],decreasing=TRUE)[1:ntop.trajectories]
-
-
+    
+    
     # calculate cell-specific weights
     cw <- unlist(lapply(cpl,function(d) as.numeric(trp@x*(d[celli,trp@i+1]))))
     cw <- cw[1:igraph::ecount(g)] # trim extra edges
@@ -1643,7 +1644,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     cp <- Matrix::Diagonal(ncol(tp)); # cell position probabilities row-from col-to
     rownames(cp) <- colnames(cp) <- rownames(tp);
     ep <- as.array(emb)
-
+    
     for(i in 1:diffusion.steps) {
       cp <- cp %*% t(tp);
       # expected position
@@ -1666,7 +1667,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
     })
   }
   return(invisible(tp))
-
+  
 }
 
 
@@ -1680,7 +1681,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
 ##' @return a list containing: emat - exonic (spliced) read count matrix ; iomat - intronic (unspliced) matrix; smat - spanning read matrix; base.df - data frame containing gene structural information; exons - exon annotation and read counts; genes - gene annotation table with additional structural info; expr.lstat - gene length statistics when considering only expressed exons
 ##' @export
 read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.cores=defaultNCores()) {
-  # read in annotation
+  # read in annotation 
   # TODO: enable direct gtf read
   cat("reading gene annotation ... ")
   x <- read.delim(annotation.file,header=F,sep="\t",stringsAsFactors=F)
@@ -1689,8 +1690,8 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
   genes$p3 <- genes$end; genes$p3[genes$strand=="-"] <- genes$start[genes$strand=="-"];
   genes$size <- genes$end - genes$start;
   cat("done (",nrow(genes),"genes)\n")
-
-
+  
+  
   # parse out exon information
   cat("parsing exon information ... ")
   exons <- do.call(rbind,lapply(1:nrow(x),function(i) {
@@ -1699,15 +1700,15 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
   }))
   exons <- data.frame(gene=as.character(exons[,3]),start=as.numeric(exons[,1]),end=as.numeric(exons[,2]),stringsAsFactors=F)
   exons$chr <- genes$chr[match(exons$gene,genes$name)]
-
+  
   # eliminate duplicated exons? - points.within will count reads only once anyhow
   exons <- exons[!duplicated(paste(exons[,1],exons[,2],exons[,3])),]
-
+  
   # eliminate multiple variants - keep the largest ones
   genes <- genes[order(genes$size,decreasing=T),]
   genes <- genes[!duplicated(genes$name),]
   cat("done\n")
-
+  
   # read in expression data
   #  - ultimately we'll get three kinds of matrices here:
   #      1. exonic reads
@@ -1716,7 +1717,7 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
   #  - we will also use bam files to count the number of expressed exons,
   #    to adjust the structural parameters of each gene. Though this is not
   #    as important for the intron-only models.
-
+  
   # read in all bam files
   cat("reading in",length(bam.files),"bam files ... ")
   # annotate individual reads
@@ -1730,17 +1731,17 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
   cat("adjusting gene annotation based on expressed regions ... ")
   # count total number of reads per exon to get the ones that are expressed ...
   tl <- Matrix::colSums(do.call(rbind,parallel::mclapply(cdl,function(x) { ect <- table(c(x$exonstart,x$exonend)); fect <- rep(0,nrow(exons)); fect[as.integer(names(ect))] <- ect; fect; },mc.cores=n.cores,mc.preschedule=T)))
-
+  
   # calculate gene length statistics, based on the expressed exons
   expr.exons <- exons[tl>min.exon.count,]; # expressed exons - those showing >100 reads dataset-wide
   expr.lstat <- lengthstats2(1e8,genes=genes,exons=expr.exons); # intron/exon length statistics for genes, considering only expressed exons
-
+  
   # compile joint table
   df <- data.frame(il=log10(expr.lstat[,2]+1),el=log10(expr.lstat[,3]+1)); rownames(df) <- rownames(expr.lstat)
   df$nex <- as.integer(table(expr.exons$gene)[rownames(df)]);
   df$nex[is.na(df$nex)] <- 0
   cat("done\n")
-
+  
   # construct sparse input matrices
   # exonic counts
   emat <- do.call(cbind,lapply(edl,function(d) { (d[,'exon']) }));  emat[!is.finite(emat)] <- 0;  emat <- as(emat,'dgCMatrix')
@@ -1748,8 +1749,8 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
   smat <- do.call(cbind,lapply(edl,function(d) { (d[,'span']) }));  smat[!is.finite(smat)] <- 0;  smat <- as(smat,'dgCMatrix')
   # intron-only counts
   iomat <- do.call(cbind,lapply(edl,function(d) { (d[,'introno']) }));  iomat[!is.finite(iomat)] <- 0;  iomat <- as(iomat,'dgCMatrix')
-
-
+  
+  
   return(list(emat=emat,iomat=iomat,smat=smat,base.df=df,exons=exons,genes=genes,expr.lstat=expr.lstat))
 }
 
@@ -1762,7 +1763,7 @@ read.smartseq2.bams <- function(bam.files,annotation.file,min.exon.count=100,n.c
 ##' @param min.umi.reads minimum number of read required per UMI/gene combination to be counted (defaults to 1)
 ##' @return a list structure analogous to the return of read.smartseq2.bams(), counting molecules instead of reads.
 read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.cores=defaultNCores(),min.umi.reads=1) {
-  # read in annotation
+  # read in annotation 
   # TODO: enable direct gtf read
   cat("reading gene annotation ... ")
   x <- read.delim(annotation.file,header=F,sep="\t",stringsAsFactors=F)
@@ -1771,8 +1772,8 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
   genes$p3 <- genes$end; genes$p3[genes$strand=="-"] <- genes$start[genes$strand=="-"];
   genes$size <- genes$end - genes$start;
   cat("done (",nrow(genes),"genes)\n")
-
-
+  
+  
   # parse out exon information
   cat("parsing exon information ... ")
   exons <- do.call(rbind,lapply(1:nrow(x),function(i) {
@@ -1781,15 +1782,15 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
   }))
   exons <- data.frame(gene=as.character(exons[,3]),start=as.numeric(exons[,1]),end=as.numeric(exons[,2]),stringsAsFactors=F)
   exons$chr <- genes$chr[match(exons$gene,genes$name)]
-
+  
   # eliminate duplicated exons? - points.within will count reads only once anyhow
   exons <- exons[!duplicated(paste(exons[,1],exons[,2],exons[,3])),]
-
+  
   # eliminate multiple variants - keep the largest ones
   genes <- genes[order(genes$size,decreasing=T),]
   genes <- genes[!duplicated(genes$name),]
   cat("done\n")
-
+  
   # read in expression data
   #  - ultimately we'll get three kinds of matrices here:
   #      1. exonic reads
@@ -1798,7 +1799,7 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
   #  - we will also use bam files to count the number of expressed exons,
   #    to adjust the structural parameters of each gene. Though this is not
   #    as important for the intron-only models.
-
+  
   # read in all bam files
   cat("reading in",length(bam.files),"bam files ... ")
   # annotate individual reads
@@ -1808,10 +1809,10 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
     z$umig <- paste(gsub(".*?_","",z$name),z$gene)
     z[match(names(which(table(z$umig)>=min.umi.reads)),z$umig),]
   }
-
+  
   cdl <- parallel::mclapply(bam.files,function(x) t.reduce.umi(t.annotate.bam.reads(x,genes=genes,exons=exons,margin=1,exon.margin=1,use.names=T)),mc.cores=n.cores)
-
-
+  
+  
   cat("done\n")
   # get count estimates per gene
   cat("estimating gene counts ... ")
@@ -1821,17 +1822,17 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
   cat("adjusting gene annotation based on expressed regions ... ")
   # count total number of reads per exon to get the ones that are expressed ...
   tl <- Matrix::colSums(do.call(rbind,parallel::mclapply(cdl,function(x) { ect <- table(c(x$exonstart,x$exonend)); fect <- rep(0,nrow(exons)); fect[as.integer(names(ect))] <- ect; fect; },mc.cores=n.cores,mc.preschedule=T)))
-
+  
   # calculate gene length statistics, based on the expressed exons
   expr.exons <- exons[tl>min.exon.count,]; # expressed exons - those showing >100 reads dataset-wide
   expr.lstat <- lengthstats2(1e8,genes=genes,exons=expr.exons); # intron/exon length statistics for genes, considering only expressed exons
-
+  
   # compile joint table
   df <- data.frame(il=log10(expr.lstat[,2]+1),el=log10(expr.lstat[,3]+1)); rownames(df) <- rownames(expr.lstat)
   df$nex <- as.integer(table(expr.exons$gene)[rownames(df)]);
   df$nex[is.na(df$nex)] <- 0
   cat("done\n")
-
+  
   # construct sparse input matrices
   # exonic counts
   emat <- do.call(cbind,lapply(edl,function(d) { (d[,'exon']) }));  emat[!is.finite(emat)] <- 0;  emat <- as(emat,'dgCMatrix')
@@ -1839,8 +1840,8 @@ read.strtc1.bams <- function(bam.files,annotation.file,min.exon.count=100,n.core
   smat <- do.call(cbind,lapply(edl,function(d) { (d[,'span']) }));  smat[!is.finite(smat)] <- 0;  smat <- as(smat,'dgCMatrix')
   # intron-only counts
   iomat <- do.call(cbind,lapply(edl,function(d) { (d[,'introno']) }));  iomat[!is.finite(iomat)] <- 0;  iomat <- as(iomat,'dgCMatrix')
-
-
+  
+  
   return(list(emat=emat,iomat=iomat,smat=smat,base.df=df,exons=exons,genes=genes,expr.lstat=expr.lstat))
 }
 
@@ -1861,14 +1862,14 @@ t.annotate.bam.reads <- function(fname, genes, exons, chrl=unique(genes$chr), te
     stop("Package \"GenomeInfoDb\" needed for this function to work. Please install it.",call. = FALSE)
   }
 
-
+  
   if(!is.null(tags)) {
     param <- Rsamtools::ScanBamParam(flag=Rsamtools::scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),tag=unlist(tags))
   } else {
     param <- Rsamtools::ScanBamParam(flag=Rsamtools::scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE))
   }
   z <- GenomicAlignments::readGAlignments(fname,param=param,use.names=use.names)
-
+  
   bam.data <- data.frame(chr=as.vector(GenomeInfoDb::seqnames(z)),start=BiocGenerics::start(z),end=BiocGenerics::end(z),strand=as.vector(BiocGenerics::strand(z)),stringsAsFactors=F)
   ## if(!is.null(tags)) {
   ##   bam.data <- cbind(bam.data,as.data.frame(S4Vectors::elementMetadata((z))))
@@ -1877,44 +1878,44 @@ t.annotate.bam.reads <- function(fname, genes, exons, chrl=unique(genes$chr), te
     bam.data$name <- names(z)
   }
   bam.data <- bam.data[bam.data$chr %in% chrl,]
-
+  
   chrl <- chrl[chrl %in% unique(bam.data$chr)]
-
+  
   ## assign reads to genes
   x <- do.call(rbind,lapply(chrl,function(chr) {
     ri <- which(bam.data$chr==chr)
     results <- data.frame(bam.data[ri,],gene=rep(NA,length(ri)), exonstart=0, exonend=0, readtype='NI',stringsAsFactors=F) ## intronic read unless evidence to change it
     gi <- which(genes$chr==chr)
     ei <- which(exons$chr==chr)
-
+    
     # check if the read is associated with any gene
     pi1 <- points.within(bam.data$start[ri],genes$start[gi]-margin,genes$end[gi]+margin); # note that many gene fragments are supplied at once - no need to loop in R!
     pi2 <- points.within(bam.data$end[ri],genes$start[gi]-margin,genes$end[gi]+margin);
     vi <- pi1>0 | pi2>0;
-    if(any(vi)) {
+    if(any(vi)) { 
       results$gene[vi] <- genes$name[gi[pmax(pi1[vi],pi2[vi])]]; # take largest matched gene index .. should check for consistency
     }
-
+    
     # check exon mapping
     pi1 <- points.within(bam.data$start[ri],exons$start[ei]-exon.margin,exons$end[ei]+exon.margin);
     pi2 <- points.within(bam.data$end[ri],exons$start[ei]-exon.margin,exons$end[ei]+exon.margin);
-
+    
     # see if both ends map to the same exon - that's NC
     vi <- pi1>0  & pi1==pi2
     if(any(vi)) { results$readtype[vi] <- 'NC'; results$gene[vi] <- exons$gene[ei[pi1[vi]]]; }
-
+    
     # different exons - NE
     vi <- pi1>0 & pi2>0 & pi1!=pi2
     if(any(vi)) { results$readtype[vi] <- 'NE'; results$gene[vi] <- exons$gene[ei[pi1[vi]]]; }
-
+    
     # one exon, and one something else - assume NS for now, will check for margins later
     vi <- sign(pi1) != sign(pi2);
     if(any(vi)) { results$readtype[vi] <- 'NS'; results$gene[vi] <- exons$gene[ei[pmax(pi1,pi2)[vi]]]; }
-
+    
     # note: I am not sure what these two values are needed for, but here's how to get them
     pi1[pi1==-1] <- NA; pi2[pi2==-1] <- NA;
     results$exonstart <- ei[pi1]; results$exonend <- ei[pi2];
-
+    
     # assign margin classes (N5 - fully in the 5' margin, N3 - fully in the 3', N5b - spanning exon and 5' margin, N3b - spanning exon and 3' margin)
     if(margin>0) {
       # start is in the start margin
@@ -1922,27 +1923,27 @@ t.annotate.bam.reads <- function(fname, genes, exons, chrl=unique(genes$chr), te
       pi1check <- points.within(bam.data$start[ri],genes$start[gi],genes$end[gi]); # check for genes
       ivi <- pi1>0 & pi1check>0 # both in margin and in some other gene - should be invalidated
       if(any(ivi)) { results$gene[ivi] <- NA }
-
+      
       # if it is in vi, then it must be partially margin (joining margin and the first/last exon), otherwise it's fully in margin
       vi2 <- pi1>0 & vi;
       if(any(vi2)) { results$readtype[vi2] <- ifelse(genes$strand[gi[pi1[vi2]]]=='+','N5b','N3b') }
       vi2 <- pi1>0 & !vi;
       if(any(vi2)) { results$readtype[vi2] <- ifelse(genes$strand[gi[pi1[vi2]]]=='+','N5','N3') }
-
+      
       # and now check the other end of the read
       # end is in the margin
       pi2 <- points.within(bam.data$end[ri],genes$end[gi]+1,genes$end[gi]+margin);
       pi2check <- points.within(bam.data$end[ri],genes$start[gi],genes$end[gi]); # check for genes
       ivi <- pi2>0 & pi2check>0 # both in margin and in some other gene - should be invalidated
       if(any(ivi)) { results$gene[ivi] <- NA }
-
+      
       # if it is in vi, then it must be partially margin (joining margin and the first/last exon), otherwise it's fully in margin
       vi2 <- pi2>0 & vi;
       if(any(vi2)) { results$readtype[vi2] <- ifelse(genes$strand[gi[pi2[vi2]]]=='+','N3b','N5b') }
       vi2 <- pi2>0 & !vi;
       if(any(vi2)) { results$readtype[vi2] <- ifelse(genes$strand[gi[pi2[vi2]]]=='+','N3','N5') }
     }
-
+    
     # omit reads that didn't get assinged to genes (or were invalidated)
     results <- results[!is.na(results$gene),]
     return(results)
@@ -1954,27 +1955,27 @@ t.get.estimates2 <- function(cd,genes) {
   cd$gene <- match(cd$gene,genes$name);
   # number of reads within the exons
   vi <- cd$readtype %in% c("NC","NE");  exon.counts <- tapply(cd$gene[vi],cd$gene[vi],length)
-
+  
   # intronic reads
   vi <- cd$readtype %in% c("NI","NS"); intron.counts <- tapply(cd$gene[vi],cd$gene[vi],length)
   # intron only counts
   vi <- cd$readtype %in% c("NI"); introno.counts <- tapply(cd$gene[vi],cd$gene[vi],length)
   # span only counts
   vi <- cd$readtype %in% c("NS"); span.counts <- tapply(cd$gene[vi],cd$gene[vi],length)
-
+  
   # number of reads in the upstream region (don't include those briding exon, since they're supposed to be a different strand)
   vi <- cd$readtype %in% c("N5"); upstream.counts <- tapply(cd$gene[vi],cd$gene[vi],length)
   # downstream region (running from the exon is fine, since it can be the same strand)
   vi <- cd$readtype %in% c("N3","N3b"); downstream.counts <- tapply(cd$gene[vi],cd$gene[vi],length)
-
-
+  
+  
   # construct report matrix
   df <- matrix(NA,nrow=nrow(genes),ncol=7)
   df[as.integer(names(exon.counts)),1] <- exon.counts
   df[,2] <- 0
   # normalize by the expected fraction of reads from the last 1kb (assume that the last exon is ~1kb) TODO: transcript-coordinate estimation
   #df[,2] <- df[,2]/lstat.e3$e*lstat$e;
-
+  
   df[as.integer(names(intron.counts)),3] <- intron.counts
   df[as.integer(names(upstream.counts)),4] <- upstream.counts
   df[as.integer(names(downstream.counts)),5] <- downstream.counts
@@ -2011,7 +2012,7 @@ edgeR.libsize <- function(mat, ...) {
 sn <- function(x) { names(x) <- x; x}
 
 #' adjust colors, while keeping the vector names
-#'
+#' 
 #' @param x color vector
 #' @param alpha transparenscy value (passed to adjustcolors as alpha.f)
 #' @param ... parameters passsed to adjustcolor
@@ -2032,7 +2033,7 @@ val2col <- function(x,gradientPalette=NULL,zlim=NULL,gradient.range.quantile=0.9
     }
     x[x<zlim[1]] <- zlim[1]; x[x>zlim[2]] <- zlim[2];
     x <- (x-zlim[1])/(zlim[2]-zlim[1])
-
+    
   } else {
     if(is.null(gradientPalette)) {
       gradientPalette <- colorRampPalette(c("blue", "grey90", "red"), space = "Lab")(1024)
@@ -2045,9 +2046,9 @@ val2col <- function(x,gradientPalette=NULL,zlim=NULL,gradient.range.quantile=0.9
     }
     x[x<zlim[1]] <- zlim[1]; x[x>zlim[2]] <- zlim[2];
     x <- (x-zlim[1])/(zlim[2]-zlim[1])
-
+    
   }
-
+  
   gp <- gradientPalette[x*(length(gradientPalette)-1)+1]
   if(!is.null(names(x))) { names(gp) <- names(x) }
   gp
@@ -2075,15 +2076,15 @@ t.get.projected.cell <- function(em,deltae,delta=1,target.mult=1e3,model.mult=1e
 t.get.projected.cell2 <- function(em,cellSize,deltae,mult=1e3,delta=1) {
   rz <- matrix(0,nrow=nrow(em),ncol=ncol(em)); colnames(rz) <- colnames(em); rownames(rz) <- rownames(em)
   gn <- intersect(rownames(deltae),rownames(rz))
-  rz[match(gn,rownames(rz)),colnames(deltae)] <- deltae[gn,];
+  rz[match(gn,rownames(rz)),colnames(deltae)] <- deltae[gn,]; 
   # translate fpm delta into the number of molecules based on the current cell size
   rz <- t(t(rz)*cellSize)
   emm <- t(t(em)*cellSize)
-  emn <- emm + rz*delta;
+  emn <- emm + rz*delta; 
   emn[emn<0] <- 0;
   newCellSize <- (cellSize+Matrix::colSums(emn-emm)/mult)
   emn <- t(t(emn)/newCellSize)
-
+  
   #emn <- t(t(emn)/Matrix::colSums(emn)*Matrix::colSums(em))
   emn
 }
@@ -2155,7 +2156,7 @@ read.loom.matrices <- function(file, engine='hdf5r') {
 ##' }
 ##' @export
 find.ip.sites <- function(gtf.file,genome,genome.name,w=0.9,n=15,min.score='80%',add.chr=TRUE) {
-
+  
   if (!requireNamespace("GenomicRanges", quietly = TRUE)) {
     stop("Package \"GenomicRanges\" needed for this function to work. Please install it.",
          call. = FALSE)
@@ -2175,7 +2176,7 @@ find.ip.sites <- function(gtf.file,genome,genome.name,w=0.9,n=15,min.score='80%'
                score=GenomicRanges::score(x),
                strand=GenomicRanges::strand(x))
   }
-
+  
   # read specified features from gtf file, recording specified attributes
   t.read.gtf <- function(file,feature="gene",atts=c("gene_id"),n.cores=30) {
     if (!requireNamespace("data.table", quietly = TRUE)) {
@@ -2427,7 +2428,7 @@ t.get.projected.delta2 <- function(em,nm,nm.size,gamma,offset=rep(0,length(gamma
   d <- em*egt + (1-egt)*t(t(y)/nm.size)/gamma  - em;
   d1 <- em*egt + (1-egt)*t(t(y1)/nm.size)/gamma  - em;
   d2 <- em*egt + (1-egt)*t(t(y2)/nm.size)/gamma  - em;
-
+  
   cd <- d;
   zi <- abs(cd)>abs(d1); cd[zi] <- d1[zi]
   zi <- abs(cd)>abs(d2); cd[zi] <- d2[zi]
@@ -2436,7 +2437,7 @@ t.get.projected.delta2 <- function(em,nm,nm.size,gamma,offset=rep(0,length(gamma
 }
 
 
-# estimate projected delta given log2 fold observed/expected nascent ratio
+# estimate projected delta given log2 fold observed/expected nascent ratio 
 # em - normalized expression matrix
 # nm - normalized nascent matrix
 # gamma - inferred degradation coefficients
@@ -2459,14 +2460,14 @@ points.within <- function(x,fs,fe,return.list=F,return.unique=F,sorted=F,return.
     ox <- rank(x,ties.method="first");
     x <- sort(x);
   }
-
+  
   se <- c(fs,fe);
   fi <- seq(1:length(fs));
   fi <- c(fi,-1*fi);
-
+  
   fi <- fi[order(se)];
   se <- sort(se);
-
+  
   storage.mode(x) <- storage.mode(fi) <- storage.mode(se) <- "integer";
   if(return.unique) { iu <- 1; } else { iu <- 0; }
   if(return.list) { il <- 1; } else { il <- 0; }
@@ -2504,8 +2505,8 @@ balancedKNN <- function(val,k,maxl=k,return.distance.values=FALSE,n.threads=1,di
 # fater matrix correlations wtih armadillo
 ##' A slightly faster way of calculating column correlation matrix
 ##' @param mat matrix whose columns will be correlated
-##' @param nthreads number of threads to use
-##' @return correlation matrix
+##' @param nthreads number of threads to use 
+##' @return correlation matrix 
 ##' @export
 armaCor <- function(mat,nthreads=1) {
   cd <- arma_mat_cor(mat);

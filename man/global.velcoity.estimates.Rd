@@ -77,6 +77,6 @@ Structure-based gene velocity estimation
  #   For droplet data, this info can be obtained \\code{\\link{}}
  gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
        kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
-
+ 
 }
 }

@@ -34,4 +34,4 @@ Suggests:
   edgeR,
   h5
 LinkingTo: Rcpp, RcppArmadillo
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.0

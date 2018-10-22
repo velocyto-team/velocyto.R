@@ -14,14 +14,13 @@
 #//' @importFrom GenomicRanges GRanges
 #//' @importFrom IRanges IRanges
 #//' @importFrom data.table fread
-#' @importFrom h5 h5file h5close list.datasets
 #' @importFrom methods as
 NULL
 
 # optional imports
 # @import igraph
 # @importFrom abind abind
-# @import h5
+# @import hdf5r
 # @importFrom edgeR calcNormFactors
 # @import GenomicAlignments
 # @import Rsamtools

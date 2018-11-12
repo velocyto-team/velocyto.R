@@ -14,14 +14,13 @@
 #//' @importFrom GenomicRanges GRanges
 #//' @importFrom IRanges IRanges
 #//' @importFrom data.table fread
-#' @importFrom h5 h5file h5close list.datasets
 #' @importFrom methods as
+#' @import hdf5r
 NULL
 
 # optional imports
 # @import igraph
 # @importFrom abind abind
-# @import h5
 # @importFrom edgeR calcNormFactors
 # @import GenomicAlignments
 # @import Rsamtools
@@ -2097,17 +2096,17 @@ t.get.projected.cell2 <- function(em,cellSize,deltae,mult=1e3,delta=1) {
 ##' @return a list containing spliced, unspliced, ambiguous and spanning matrices
 ##' @export
 read.loom.matrices <- function(file) {
-  f <- h5::h5file(file,mode='r');
-  cells <- f["col_attrs/CellID"][];
-  genes <- f["row_attrs/Gene"][];
+  f <- H5File$new(file,mode='r');
+  cells <- f[["col_attrs/CellID"]][];
+  genes <- f[["row_attrs/Gene"]][];
   dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
-  if("/layers/spanning" %in% h5::list.datasets(f)) {
+  if( f$exists("/layers/spanning")) {
     dl <- c(dl,c(spanning="/layers/spanning"))
   }
   dlist <- lapply(dl,function(path) {
-    m <- as(f[path][],'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
+    m <- as(t(f[[path]][,]),'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
   })
-  h5::h5close(f)
+  f$close()
   return(dlist);
 }
 
@@ -2227,10 +2226,10 @@ find.ip.sites <- function(gtf.file,genome,genome.name,w=0.9,n=15,min.score='80%'
 ##' @export
 read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.info=NULL,min.exon.count=10,n.cores=defaultNCores()) {
   cat("reading in mapping info from",fname,' ')
-  f <- h5file(fname,mode='r');
+  f <- H5File$new(fname,mode='r');
   #list.datasets(f)
   # read in info tables
-  info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[paste('/info',n,sep='/')][] })
+  info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[[paste('/info',n,sep='/')]]$read() })
   info$chrm <- gsub("^chr","",info$chrm)
   cat(" done\n")
   # extract cell names
@@ -2241,13 +2240,13 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
     if(!any(names(cell.clusters) %in% cnames)) {
       warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",paste(cnames[1:3],collapse=' '),"... ]"))
       cat("parsing out feature counts across all cells ... ")
-      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[[paste('/cells',n,'ixs',sep='/')]]$read() ))+1,nbins=length(info$chrm)))
       cat("done\n")
     } else {
       cat("parsing out info for",length(levels(cell.clusters)),"clusters: [");
       cluster.feature.counts <- do.call(cbind,tapply(names(cell.clusters),as.factor(cell.clusters),function(ii) {
         cat(".")
-        tabulate(unlist(lapply(ii,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm))
+        tabulate(unlist(lapply(ii,function(n) f[[paste('/cells',n,'ixs',sep='/')]]$read() ))+1,nbins=length(info$chrm))
       }))
       cat(". ]. done\n")
       info$cluster.feature.counts <- cluster.feature.counts;
@@ -2255,10 +2254,10 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
   } else {
     # combine counts on all cells
     cat("parsing out feature counts across all cells ... ")
-    info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+    info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[[paste('/cells',n,'ixs',sep='/')]]$read() ))+1,nbins=length(info$chrm)))
     cat("done\n")
   }
-  h5close(f)
+  f$close()
   
   # calculate dataset-wide effective gene length and other parameters
   # attempt to get unique gene names

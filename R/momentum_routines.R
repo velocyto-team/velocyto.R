@@ -2230,23 +2230,26 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
   #list.datasets(f)
   # read in info tables
   info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[[paste('/info',n,sep='/')]]$read() })
+  info$start_end <- t(info$start_end)
   info$chrm <- gsub("^chr","",info$chrm)
   cat(" done\n")
   # extract cell names
-  cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/",list.datasets(f),value=T),value=T)))
+  cnames <- gsub('/pos','',gsub('cells/','',grep('/pos',grep("cells/",list.datasets(f),value=T),value=T)))
   if(!is.null(cell.clusters)) {
     # count abundancies per element for each cell cluster
     cell.clusters <- as.factor(cell.clusters)
     if(!any(names(cell.clusters) %in% cnames)) {
-      warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",paste(cnames[1:3],collapse=' '),"... ]"))
+      warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",
+                    paste(cnames[1:3],collapse=' '),"... ]"))
       cat("parsing out feature counts across all cells ... ")
-      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[[paste('/cells',n,'ixs',sep='/')]]$read() ))+1,nbins=length(info$chrm)))
+      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(
+        lapply(cnames,function(n) f[[paste('/cells',n,'ixs',sep='/')]][] ))+1,nbins=length(info$chrm)))
       cat("done\n")
     } else {
       cat("parsing out info for",length(levels(cell.clusters)),"clusters: [");
       cluster.feature.counts <- do.call(cbind,tapply(names(cell.clusters),as.factor(cell.clusters),function(ii) {
         cat(".")
-        tabulate(unlist(lapply(ii,function(n) f[[paste('/cells',n,'ixs',sep='/')]]$read() ))+1,nbins=length(info$chrm))
+        tabulate(unlist(lapply(ii,function(n) f[[paste('/cells',n,'ixs',sep='/')]][] ))+1,nbins=length(info$chrm))
       }))
       cat(". ]. done\n")
       info$cluster.feature.counts <- cluster.feature.counts;
@@ -2254,7 +2257,8 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
   } else {
     # combine counts on all cells
     cat("parsing out feature counts across all cells ... ")
-    info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[[paste('/cells',n,'ixs',sep='/')]]$read() ))+1,nbins=length(info$chrm)))
+    info$cluster.feature.counts <- cbind('all'=tabulate(unlist(
+      lapply(cnames, function(n) f[[paste('/cells',n,'ixs',sep='/')]][] ))+1,nbins=length(info$chrm)))
     cat("done\n")
   }
   f$close()

@@ -20,7 +20,7 @@ Imports: Rcpp (>= 0.12.13),
   grDevices,
   igraph,
   methods,
-  h5
+  hdf5r
 Suggests:
   Rtsne,
   BiocGenerics,

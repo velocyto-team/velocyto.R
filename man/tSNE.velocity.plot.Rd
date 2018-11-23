@@ -4,13 +4,14 @@
 \alias{tSNE.velocity.plot}
 \title{Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions}
 \usage{
-tSNE.velocity.plot(vel, cell.colors = NULL, scale = "log", do.par = T,
-  delta.norm = TRUE, nPcs = 15, norm.nPcs = nPcs * 10,
-  perplexity = ncol(vel$current)/3, show.grid.flow = FALSE, grid.n = 20,
-  grid.sd = NULL, min.grid.cell.mass = 1, pcount = 0.1, verbose = TRUE,
-  min.arrow.median.ratio = 1/10, max.arrow.quantile = 0.9,
-  arrow.scale = 1, arrow.lwd = 1, xlab = "", ylab = "",
-  n.cores = defaultNCores(), size.norm = TRUE, ...)
+tSNE.velocity.plot(vel, cell.colors = NULL, scale = "log",
+  do.par = T, delta.norm = TRUE, nPcs = 15, norm.nPcs = nPcs * 10,
+  perplexity = ncol(vel$current)/3, show.grid.flow = FALSE,
+  grid.n = 20, grid.sd = NULL, min.grid.cell.mass = 1,
+  pcount = 0.1, verbose = TRUE, min.arrow.median.ratio = 1/10,
+  max.arrow.quantile = 0.9, arrow.scale = 1, arrow.lwd = 1,
+  xlab = "", ylab = "", n.cores = defaultNCores(),
+  size.norm = TRUE, ...)
 }
 \arguments{
 \item{vel}{velocity result}

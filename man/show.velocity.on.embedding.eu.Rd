@@ -11,9 +11,9 @@ show.velocity.on.embedding.eu(emb, vel, n = 30, embedding.knn = TRUE,
   do.par = T, show.cell.arrows = NULL, show.cell.trajectories = NULL,
   show.trajectories = FALSE, show.all.trajectories = FALSE,
   show.cell.diffusion.posterior = NULL, show.grid.flow = FALSE,
-  diffusion.steps = 10, cell.dist = NULL, trajectory.spline.shape = 1,
-  cell.color.alpha = 0.5, n.cores = defaultNCores(),
-  n.trajectory.clusters = 10, ...)
+  diffusion.steps = 10, cell.dist = NULL,
+  trajectory.spline.shape = 1, cell.color.alpha = 0.5,
+  n.cores = defaultNCores(), n.trajectory.clusters = 10, ...)
 }
 \arguments{
 \item{emb}{embedding to be used for projection}

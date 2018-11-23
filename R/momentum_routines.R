@@ -14,14 +14,13 @@
 #//' @importFrom GenomicRanges GRanges
 #//' @importFrom IRanges IRanges
 #//' @importFrom data.table fread
-#' @importFrom h5 h5file h5close list.datasets
 #' @importFrom methods as
 NULL
 
 # optional imports
 # @import igraph
 # @importFrom abind abind
-# @import h5
+# @import hdf5r
 # @importFrom edgeR calcNormFactors
 # @import GenomicAlignments
 # @import Rsamtools
@@ -2094,21 +2093,47 @@ t.get.projected.cell2 <- function(em,cellSize,deltae,mult=1e3,delta=1) {
 ##' prepared by velocyto.py CLI
 ##'
 ##' @param file loom file name
+##' @param engine Use hdf5r or h5 to import loom file
 ##' @return a list containing spliced, unspliced, ambiguous and spanning matrices
 ##' @export
-read.loom.matrices <- function(file) {
-  f <- h5::h5file(file,mode='r');
-  cells <- f["col_attrs/CellID"][];
-  genes <- f["row_attrs/Gene"][];
-  dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
-  if("/layers/spanning" %in% h5::list.datasets(f)) {
-    dl <- c(dl,c(spanning="/layers/spanning"))
+read.loom.matrices <- function(file, engine='hdf5r') {
+  if (engine == 'h5'){
+    cat('reading loom file via h5...\n')
+    f <- h5::h5file(file,mode='r');
+    cells <- f["col_attrs/CellID"][];
+    genes <- f["row_attrs/Gene"][];
+    dl <- c(spliced="/layers/spliced",unspliced="/layers/unspliced",ambiguous="/layers/ambiguous");
+    if("/layers/spanning" %in% h5::list.datasets(f)) {
+      dl <- c(dl,c(spanning="/layers/spanning"))
+    }
+    dlist <- lapply(dl,function(path) {
+      m <- as(f[path][],'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
+    })
+    h5::h5close(f)
+    return(dlist)
+  } else if (engine == 'hdf5r') {
+    cat('reading loom file via hdf5r...\n')
+    f <- hdf5r::H5File$new(file, mode='r')
+    cells <- f[["col_attrs/CellID"]][]
+    genes <- f[["row_attrs/Gene"]][]
+    dl <- c(spliced="layers/spliced",
+            unspliced="layers/unspliced",
+            ambiguous="layers/ambiguous")
+    if("layers/spanning" %in% hdf5r::list.datasets(f)) {
+      dl <- c(dl, c(spanning="layers/spanning"))
+    }
+    dlist <- lapply(dl, function(path) {
+      m <- as(t(f[[path]][,]),'dgCMatrix')
+      rownames(m) <- genes; colnames(m) <- cells;
+      return(m)
+    })
+    f$close_all()
+    return(dlist)
   }
-  dlist <- lapply(dl,function(path) {
-    m <- as(f[path][],'dgCMatrix'); rownames(m) <- genes; colnames(m) <- cells; return(m)
-  })
-  h5::h5close(f)
-  return(dlist);
+  else {
+    warning('Unknown engine. Use hdf5r or h5 to import loom file.')
+    return(list())
+  }
 }
 
 
@@ -2219,56 +2244,115 @@ find.ip.sites <- function(gtf.file,genome,genome.name,w=0.9,n=15,min.score='80%'
 ##' read in detailed molecular mapping info from hdf5 file as written out by "-d" option of velocyto.py
 ##'
 ##' @param fname name of the hdf5 detailed molecular mapping (debug) file, written out by velocyto.py
-##' @param cell.clusters optional cell cluster factor 
+##' @param cell.clusters optional cell cluster factor
 ##' @param internal.priming.info optionall internal priming info, as produced by find.ip.sites() function
 ##' @param min.exon.count minimal total (dataset-wide) number of molecules for an exon to be considered expressed
 ##' @param n.cores number of cores to use
+##' @param engine use either h5 or hdf5r to read the input hdf5 file
 ##' @return a list containing gene structural information data structure ($gene.df, with el,il, nex,nipconc,nipdisc columns corresponding to the log10 exonic length, intronic length, number of exons, numebr of internal concordant and discordant priming sites, respectively), and $info tables from the hdf5 file with an additional per-cluster entry $cluster.feature.counts table showing per-feature (rows) per-cluster (column) molecule counts (if cell.clusters are not supplied $info$cluster.feauture.counts will contain one column, 'all' giving dataset-wide counts)
 ##' @export
-read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.info=NULL,min.exon.count=10,n.cores=defaultNCores()) {
-  cat("reading in mapping info from",fname,' ')
-  f <- h5file(fname,mode='r');
+read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.info=NULL,min.exon.count=10,n.cores=defaultNCores(),engine='hdf5r') {
+  cat("reading in mapping info from",fname,' via', engine)
+  if (engine == 'h5') {
+    f <- h5::h5file(fname,mode='r')
+  } else if (engine == 'hdf5r') {
+    f <- hdf5r::H5File$new(fname, mode='r')
+  } else {
+    stop('Unknown engine. Use either hdf5r or h5.\n')
+  }
   #list.datasets(f)
   # read in info tables
-  info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[paste('/info',n,sep='/')][] })
+  if (engine == 'h5') info <- lapply(sn(c("chrm","exino","features_gene","is_intron","is_last3prime","start_end","strandplus","tr_id")),function(n) { cat('.'); f[paste('/info',n,sep='/')][] })
+  if (engine == 'hdf5r') {
+  info <- lapply(
+    sn(c("chrm","exino","features_gene", "is_intron","is_last3prime",
+         "start_end","strandplus","tr_id")),
+    function(n) {
+      cat('.'); x <- f[[paste('info', n, sep='/')]]$read();
+      if (is.matrix(x)) {t(x)} else {x} })
+  }
   info$chrm <- gsub("^chr","",info$chrm)
   cat(" done\n")
   # extract cell names
-  cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/",list.datasets(f),value=T),value=T)))
+  if (engine == 'h5') cnames <- gsub('/pos','',gsub('/cells/','',grep('/pos',grep("/cells/", h5::list.datasets(f),value=T),value=T)))
+  if (engine == 'hdf5r') {
+    cnames <- gsub(
+      '/pos', '',
+      gsub('cells/','',
+           grep('/pos',
+                grep("cells/", hdf5r::list.datasets(f), value=T),
+                value=T)))
+  }
   if(!is.null(cell.clusters)) {
     # count abundancies per element for each cell cluster
     cell.clusters <- as.factor(cell.clusters)
     if(!any(names(cell.clusters) %in% cnames)) {
       warning(paste("could not match any of the specified cell names. hdf5 file contains names like [",paste(cnames[1:3],collapse=' '),"... ]"))
       cat("parsing out feature counts across all cells ... ")
-      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+      if (engine == 'h5') {
+        info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(
+          cnames,
+          function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+      } else if (engine == 'hdf5r') {
+        info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(
+          cnames,
+          function(n) f[[paste('cells',n,'ixs',sep='/')]]$read() ))+1,
+          nbins=length(info$chrm)))
+      } else {stop('Unknown engine. Use either hdf5r or h5.\n')}
       cat("done\n")
     } else {
       cat("parsing out info for",length(levels(cell.clusters)),"clusters: [");
-      cluster.feature.counts <- do.call(cbind,tapply(names(cell.clusters),as.factor(cell.clusters),function(ii) {
-        cat(".")
-        tabulate(unlist(lapply(ii,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm))
-      }))
+      if (engine == 'h5'){
+        cluster.feature.counts <- do.call(cbind,tapply(names(cell.clusters),as.factor(cell.clusters),function(ii) {
+          cat(".")
+          tabulate(unlist(lapply(
+            ii,
+            function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,
+            nbins=length(info$chrm))
+        }))
+      }
+      if (engine == 'hdf5r') {
+        cluster.feature.counts <- do.call(cbind,tapply(names(cell.clusters),as.factor(cell.clusters),function(ii) {
+          cat(".")
+          tabulate(unlist(lapply(
+            ii,
+            function(n) f[[paste('cells',n,'ixs',sep='/')]]$read() ))+1,
+            nbins=length(info$chrm))
+        }))
+      }
+
       cat(". ]. done\n")
       info$cluster.feature.counts <- cluster.feature.counts;
     }
   } else {
     # combine counts on all cells
     cat("parsing out feature counts across all cells ... ")
-    info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(cnames,function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,nbins=length(info$chrm)))
+    if (engine == 'h5'){
+      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(
+        cnames,
+        function(n) f[paste('/cells',n,'ixs',sep='/')][] ))+1,
+        nbins=length(info$chrm)))
+    }
+    if (engine == 'hdf5r'){
+      info$cluster.feature.counts <- cbind('all'=tabulate(unlist(lapply(
+        cnames,
+        function(n) f[[paste('cells',n,'ixs',sep='/')]]$read() ))+1,
+        nbins=length(info$chrm)))
+    }
     cat("done\n")
   }
-  h5close(f)
-  
+  if (engine == 'h5' ) h5::h5close(f)
+  if (engine == 'hdf5r') f$close_all()
+
   # calculate dataset-wide effective gene length and other parameters
   # attempt to get unique gene names
   #gchr <- paste(info$features_gene,info$chrm,sep=':')
   genes <- info$features_gene;
-  
+
   if(!is.null(internal.priming.info)) {
     internal.priming.info$chr <- gsub("^chr","",as.character(internal.priming.info$chr))
   }
-  
+
   t.get.lengthinfo <- function(fc,min.exon.count=10) {
     #fc <- rowSums(cluster.feature.counts)
     # find last expressed exon for each gene
@@ -2281,7 +2365,7 @@ read.gene.mapping.info <- function(fname,cell.clusters=NULL,internal.priming.inf
       if(length(unique(info$chrm[ii]))>1) {
         valid.exons[valid.exons] <- FALSE;
       }
-      
+
       if(any(valid.exons)) {
         # number of exons, their lengths
         valid.exons.sizes <- info$start_end[ii[exons][valid.exons],,drop=F]

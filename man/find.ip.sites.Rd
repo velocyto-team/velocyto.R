@@ -33,6 +33,6 @@ annotated intronic regions
 \examples{
 \dontrun{
 library(BSgenome.Mmusculus.UCSC.mm10)
-ip.mm10 <- t.generate.ip.mask('refdata-cellranger-mm10-1.2.0/genes/genes.gtf',Mmusculus,'mm10')
+ip.mm10 <- find.ip.sites('refdata-cellranger-mm10-1.2.0/genes/genes.gtf',Mmusculus,'mm10')
 }
 }

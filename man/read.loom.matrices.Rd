@@ -5,10 +5,12 @@
 \title{Read in loom matrices of spliced/unpsliced reads as
 prepared by velocyto.py CLI}
 \usage{
-read.loom.matrices(file)
+read.loom.matrices(file, engine = "hdf5r")
 }
 \arguments{
 \item{file}{loom file name}
+
+\item{engine}{Use hdf5r or h5 to import loom file}
 }
 \value{
 a list containing spliced, unspliced, ambiguous and spanning matrices

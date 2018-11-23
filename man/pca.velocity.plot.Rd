@@ -8,10 +8,10 @@ pca.velocity.plot(vel, nPcs = 4, cell.colors = NULL, scale = "log",
   plot.cols = min(3, nPcs - 1), norm.nPcs = NA, do.par = T,
   pc.multipliers = NULL, show.grid.flow = FALSE, grid.n = 20,
   grid.sd = NULL, arrow.scale = 1, min.grid.cell.mass = 1,
-  min.arrow.size = NULL, pcount = 1, arrow.lwd = 1, size.norm = FALSE,
-  return.details = FALSE, plot.grid.points = FALSE,
-  fixed.arrow.length = FALSE, max.grid.arrow.length = NULL,
-  n.cores = defaultNCores(), ...)
+  min.arrow.size = NULL, pcount = 1, arrow.lwd = 1,
+  size.norm = FALSE, return.details = FALSE,
+  plot.grid.points = FALSE, fixed.arrow.length = FALSE,
+  max.grid.arrow.length = NULL, n.cores = defaultNCores(), ...)
 }
 \arguments{
 \item{vel}{velocity estimation (gene-relative or global)}

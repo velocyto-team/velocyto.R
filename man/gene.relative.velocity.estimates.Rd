@@ -10,9 +10,10 @@ gene.relative.velocity.estimates(emat, nmat, deltaT = 1, smat = NULL,
   min.nmat.smat.correlation = 0.05, min.nmat.emat.correlation = 0.05,
   min.nmat.emat.slope = 0.05, zero.offset = FALSE, deltaT2 = 1,
   fit.quantile = NULL, diagonal.quantiles = FALSE, show.gene = NULL,
-  do.par = TRUE, cell.dist = NULL, emat.size = NULL, nmat.size = NULL,
-  cell.emb = NULL, cell.colors = NULL, expression.gradient = NULL,
-  residual.gradient = NULL, n.cores = defaultNCores(), verbose = TRUE)
+  do.par = TRUE, cell.dist = NULL, emat.size = NULL,
+  nmat.size = NULL, cell.emb = NULL, cell.colors = NULL,
+  expression.gradient = NULL, residual.gradient = NULL,
+  n.cores = defaultNCores(), verbose = TRUE)
 }
 \arguments{
 \item{emat}{- spliced (exonic) count matrix}

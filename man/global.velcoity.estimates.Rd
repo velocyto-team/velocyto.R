@@ -4,13 +4,14 @@
 \alias{global.velcoity.estimates}
 \title{Structure-based gene velocity estimation}
 \usage{
-global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1, smat = NULL,
-  kGenes = 15, kGenes.trim = 5, smooth.kGenes = 0, kCells = 10,
-  deltaT2 = 1, min.gene.conuts = 100, min.gene.cells = 20,
-  min.intron.length = 10^3.5, min.exon.length = 10^2.7,
-  top.global.pearson.deviance = 3, cellKNN = NULL, cell.dist = NULL,
-  fit.quantile = NULL, zero.offset = NULL, diagonal.quantiles = FALSE,
-  m.pcount = 5, plot.model.fit = FALSE, n.cores = defaultNCores())
+global.velcoity.estimates(emat, nmat, vel, base.df, deltaT = 1,
+  smat = NULL, kGenes = 15, kGenes.trim = 5, smooth.kGenes = 0,
+  kCells = 10, deltaT2 = 1, min.gene.conuts = 100,
+  min.gene.cells = 20, min.intron.length = 10^3.5,
+  min.exon.length = 10^2.7, top.global.pearson.deviance = 3,
+  cellKNN = NULL, cell.dist = NULL, fit.quantile = NULL,
+  zero.offset = NULL, diagonal.quantiles = FALSE, m.pcount = 5,
+  plot.model.fit = FALSE, n.cores = defaultNCores())
 }
 \arguments{
 \item{emat}{- spliced (exonic) count matrix}

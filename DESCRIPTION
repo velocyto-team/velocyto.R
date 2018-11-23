@@ -20,7 +20,7 @@ Imports: Rcpp (>= 0.12.13),
   grDevices,
   igraph,
   methods,
-  h5
+  hdf5r
 Suggests:
   Rtsne,
   BiocGenerics,
@@ -31,6 +31,7 @@ Suggests:
   IRanges,
   data.table,
   Rsamtools,
-  edgeR
+  edgeR,
+  h5
 LinkingTo: Rcpp, RcppArmadillo
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.0

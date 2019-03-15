@@ -703,7 +703,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     cat("rescaling ... ")
     sz <- Matrix::colSums(x0);
     x0 <- t(t(x0)/sz)*mean(sz)
-    x1 <- t(t(x1/Matrix::colSums(x1)))*mean(sz);
+    x1 <- t(t(x1)/Matrix::colSums(x1))*mean(sz);
   }
   # transform
   if(scale=='log') { 

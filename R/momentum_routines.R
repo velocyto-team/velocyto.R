@@ -721,7 +721,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   }
   
   cat("pca ... ")
-  cent <- rowMeans(x0.log);
+  cent <- Matrix::rowMeans(x0.log);
   epc <- pcaMethods::pca(t(x0.log-cent),center=F,nPcs=ifelse(is.na(norm.nPcs),nPcs,norm.nPcs))
   
   if(!is.null(pc.multipliers)) { # apply multipliers (used for flipping the direction of PCs in the plots)
@@ -941,7 +941,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
   }
   if(!is.null(nPcs)) { # reduce using PCA first
     cat("pca ... ")
-    cent <- rowMeans(x0.log);
+    cent <- Matrix::rowMeans(x0.log);
     epc <- pcaMethods::pca(t(x0.log-cent),center=F,nPcs=ifelse(is.na(norm.nPcs),nPcs,norm.nPcs))
     x0.log <- epc@scores;
     x1.log <- t(x1.log - cent) %*% epc@loadings
@@ -1356,7 +1356,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   
   if(!is.na(nPcs)) { # run PCA reduction on the em
     cat("reducing to",nPcs,"PCs ... ")
-    epc.center <- rowMeans(em);
+    epc.center <- Matrix::rowMeans(em);
     epc <- pcaMethods::pca(t(em-epc.center),center=F,nPcs=nPcs);
     em <- t(epc@scores)
     emn <- t(t(emn - epc.center) %*% epc@loadings)

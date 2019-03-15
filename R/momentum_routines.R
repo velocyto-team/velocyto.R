@@ -695,8 +695,6 @@ filter.genes.by.cluster.expression <- function(emat,clusters,min.max.cluster.ave
 ##' @return If return.details=F, returns invisible list containing PCA info (epc) and projection of velocities onto the PCs (delta.pcs). If return.details=T, returns an extended list that can be passed into p1 app for velocity visualization.
 ##' @export
 pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=min(3,nPcs-1),norm.nPcs=NA,do.par=T, pc.multipliers=NULL, show.grid.flow=FALSE, grid.n=20, grid.sd=NULL, arrow.scale=1, min.grid.cell.mass=1, min.arrow.size=NULL, pcount=1, arrow.lwd=1, size.norm=FALSE, return.details=FALSE, plot.grid.points=FALSE, fixed.arrow.length=FALSE,max.grid.arrow.length=NULL, n.cores=defaultNCores(), ...) {
-  x0 <- vel$current;
-  x1 <- vel$projected;
   if(is.null(cell.colors)) { cell.colors <- ac(rep(1,ncol(x0)),alpha=0.3); names(cell.colors) <- colnames(x0) }
   # rescale to the same size
   if(size.norm) {
@@ -739,32 +737,6 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   if(!is.na(norm.nPcs)) {
     delta.pcs <- delta.pcs/mean(sqrt(rowSums(delta.pcs^2))) # suggested by Gioele, unsure about this ....
   }
-  
-  # browser()
-  # z <- as.matrix(t(x1.log-x0.log)) %*% epc@loadings
-  # 
-  # hist(apply(vel$deltaE,2,mean))
-  # summary(apply(vel$deltaE,2,mean))
-  # hist(apply(as.matrix(x1.log-x0.log),2,mean))
-  # summary(apply(as.matrix(x1.log-x0.log),2,mean))
-  # 
-  # z <- t(as.matrix(vel$deltaE)[rownames(epc@loadings),]) %*%  epc@loadings
-  # str(z)
-  # str(delta.pcs)
-  # cn <- 'L6'
-  # cn <- 'O15'
-  # z <- (x1.log-x0.log)[,cn] * epc@loadings[,3]
-  # z2 <- vel$deltaE[names(z),cn] * epc@loadings[,3]
-  # sort(z,d=T)[1:20]
-  # sum(z)
-  # delta.pcs[cn,3]
-  # summary(delta.pcs[,3])
-  # str(epc@loadings[,3])
-  # sort(delta.pcs[,3],d=T)[1:10]
-  # z <- rowMeans(x1.log-x0.log) * epc@loadings[,3]
-  #summary(z)
-  #sort(z,d=T)[1:10]
-
   delta.pcs <- delta.pcs *arrow.scale;
   cat("done\n")
   if(do.par) par(mfrow=c(ceiling((nPcs-1)/plot.cols),plot.cols), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
@@ -772,15 +744,14 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     pos <- epc@scores[,c((i-1)+1,(i-1)+2)];
     #ppos <- x1.scores[,c((i-1)+1,(i-1)+2)];
     ppos <- pos+delta.pcs[,c((i-1)+1,(i-1)+2)];
-    plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=ac(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep=''),  ...); box();
+    plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=ac(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep='')); box();
+    # arrow estimates for each cell
+    ars <- data.frame(pos[,1],pos[,2],ppos[,1],ppos[,2])
+    colnames(ars) <- c('x0','y0','x1','y1')
+    arsd <- data.frame(xd=ars$x1-ars$x0,yd=ars$y1-ars$y0)
+    rownames(ars) <- rownames(arsd) <- rownames(pos);
     
     if(show.grid.flow) { # show grid summary of the arrows
-      # arrow estimates for each cell
-      ars <- data.frame(pos[,1],pos[,2],ppos[,1],ppos[,2])
-      colnames(ars) <- c('x0','y0','x1','y1')
-      arsd <- data.frame(xd=ars$x1-ars$x0,yd=ars$y1-ars$y0)
-      rownames(ars) <- rownames(arsd) <- rownames(pos);
-      
       # set up a grid
       rx <- range(c(range(ars$x0),range(ars$x1)))
       ry <- range(c(range(ars$y0),range(ars$y1)))
@@ -792,18 +763,18 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         grid.sd <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)/2
         cat("grid.sd=",grid.sd," ")
       }
-
+      
       if(is.null(min.arrow.size)) {
         min.arrow.size <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)*1e-2;
         cat("min.arrow.size=",min.arrow.size," ")
       }
-
+      
       if(is.null(max.grid.arrow.length)) {
         max.grid.arrow.length <- sqrt(sum((par('pin')/c(length(gx),length(gy)))^2))*0.25
         cat("max.grid.arrow.length=",max.grid.arrow.length," ")
       }
-
-
+      
+      
       garrows <- do.call(rbind,lapply(gx,function(x) {
         # cell distances (rows:cells, columns: grid points)
         cd <- sqrt(outer(pos[,2],-gy,'+')^2 + (x-pos[,1])^2)
@@ -830,27 +801,33 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd)))
       }
       if(plot.grid.points) points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
-    
-      if(return.details) { # for the p1 app
-        # calculate expression shift
-        cat("expression shifts .")
-        # for individual cells
-        es <- as.matrix(epc@loadings[,c((i-1)+1,(i-1)+2)] %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
-        
-        cat(".");
+    } else {
+      # draw individual arrows
+      grid();
+      suppressWarnings(arrows(pos[,1],pos[,2],ppos[,1],ppos[,2],length=0.05,lwd=arrow.lwd))
+    }
+    if(return.details) { # for the p1 app
+      # calculate expression shift
+      cat("expression shifts .")
+      # for individual cells
+      es <- as.matrix(epc@loadings[,c((i-1)+1,(i-1)+2)] %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
+      
+      cat(".");
+      if(show.grid.flow){
         gs <- epc@loadings[,c((i-1)+1,(i-1)+2)] %*% rbind(garrows[,3]-garrows[,1],garrows[,4]-garrows[,2])
-
-        # note: here we're using deltaE vector, which may be normalized a bit differently from the $current/$projectted that was used above
-        nd <- as.matrix(vel$deltaE)
-        if(scale=='log') {
-          nd <- (log10(abs(nd)+1)*sign(nd))
-        } else if(scale=='sqrt') {
-          nd <- (sqrt(abs(nd))*sign(nd))
-        }
-        cat(".");
-        # velocity for the grid (weight-averaged velocity vectors)
-        
-        
+      }
+      
+      # note: here we're using deltaE vector, which may be normalized a bit differently from the $current/$projected that was used above
+      nd <- as.matrix(vel$deltaE)
+      if(scale=='log') {
+        nd <- (log10(abs(nd)+1)*sign(nd))
+      } else if(scale=='sqrt') {
+        nd <- (sqrt(abs(nd))*sign(nd))
+      }
+      cat(".");
+      # velocity for the grid (weight-averaged velocity vectors)
+      
+      if(show.grid.flow){
         gv <- do.call(cbind,parallel::mclapply(gx,function(x) {
           # cell distances (rows:cells, columns: grid points)
           cd <- sqrt(outer(pos[,2],-gy,'+')^2 + (x-pos[,1])^2)
@@ -867,21 +844,18 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
             z <- nd %*% cw[,vg]
           } else { NULL }
         },mc.cores=n.cores,mc.preschedule=T))
-        cat(". done\n")
-        
-        return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos,epc=epc)))
       }
-      
-    } else {
-      # draw individual arrows
-      grid();
-      suppressWarnings(arrows(pos[,1],pos[,2],ppos[,1],ppos[,2],length=0.05,lwd=arrow.lwd))
+      cat(". done\n")
+      if(show.grid.flow){
+        return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos,epc=epc)))
+      } else {
+        return(invisible(list(arrows=as.matrix(ars),vel=nd,eshifts=es,scale=scale,emb=pos,epc=epc)))
+      }
     }
   })
   cat("done\n")
   if(return.details) { return(vinfo) }
-  return(invisible(list(epc=epc,delta.pcs=delta.pcs)))
-  
+  return(invisible(list(epc=epc,delta.pcs=delta.pcs)))  
 }
 ##' Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions
 ##'

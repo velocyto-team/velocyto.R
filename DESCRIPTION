@@ -9,6 +9,7 @@ Description: Provides basic routines for estimation of gene-specific transcripti
 License: GPL-3
 Depends:
   Matrix
+biocViews:
 Imports: Rcpp (>= 0.12.13),
   MASS,
   mgcv,

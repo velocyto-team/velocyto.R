@@ -13,6 +13,7 @@ RUN apt-get update --yes && apt-get install --no-install-recommends --yes \
   libboost-test-dev \
   libssl-dev \
   libcurl4-openssl-dev \
+  libxml2-dev \
   libz-dev \
   curl \
   libhdf5-cpp-100 \ 

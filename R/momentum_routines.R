@@ -721,7 +721,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   }
   
   cat("pca ... ")
-  cent <- rowMeans(x0.log);
+  cent <- Matrix::rowMeans(x0.log);
   epc <- pcaMethods::pca(t(x0.log-cent),center=F,nPcs=ifelse(is.na(norm.nPcs),nPcs,norm.nPcs))
   
   if(!is.null(pc.multipliers)) { # apply multipliers (used for flipping the direction of PCs in the plots)
@@ -739,7 +739,7 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
   if(!is.na(norm.nPcs)) {
     delta.pcs <- delta.pcs/mean(sqrt(rowSums(delta.pcs^2))) # suggested by Gioele, unsure about this ....
   }
-  
+    
   # browser()
   # z <- as.matrix(t(x1.log-x0.log)) %*% epc@loadings
   # 
@@ -772,15 +772,15 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
     pos <- epc@scores[,c((i-1)+1,(i-1)+2)];
     #ppos <- x1.scores[,c((i-1)+1,(i-1)+2)];
     ppos <- pos+delta.pcs[,c((i-1)+1,(i-1)+2)];
-    plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=ac(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep=''),  ...); box();
+    plot(pos,bg=cell.colors[rownames(pos)],pch=21,col=ac(1,alpha=0.3),lwd=0.5,xlab=paste("PC",(i-1)+1),ylab=paste("PC",(i-1)+2),axes=T,main=paste('PC',(i-1)+1,' vs. PC',(i-1)+2,sep=''), ...); box();
+
+    # arrow estimates for each cell
+    ars <- data.frame(pos[,1],pos[,2],ppos[,1],ppos[,2])
+    colnames(ars) <- c('x0','y0','x1','y1')
+    arsd <- data.frame(xd=ars$x1-ars$x0,yd=ars$y1-ars$y0)
+    rownames(ars) <- rownames(arsd) <- rownames(pos);
     
     if(show.grid.flow) { # show grid summary of the arrows
-      # arrow estimates for each cell
-      ars <- data.frame(pos[,1],pos[,2],ppos[,1],ppos[,2])
-      colnames(ars) <- c('x0','y0','x1','y1')
-      arsd <- data.frame(xd=ars$x1-ars$x0,yd=ars$y1-ars$y0)
-      rownames(ars) <- rownames(arsd) <- rownames(pos);
-      
       # set up a grid
       rx <- range(c(range(ars$x0),range(ars$x1)))
       ry <- range(c(range(ars$y0),range(ars$y1)))
@@ -830,27 +830,33 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
         suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd)))
       }
       if(plot.grid.points) points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
-    
-      if(return.details) { # for the p1 app
-        # calculate expression shift
-        cat("expression shifts .")
-        # for individual cells
-        es <- as.matrix(epc@loadings[,c((i-1)+1,(i-1)+2)] %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
-        
-        cat(".");
+    } else {
+      # draw individual arrows
+      grid();
+      suppressWarnings(arrows(pos[,1],pos[,2],ppos[,1],ppos[,2],length=0.05,lwd=arrow.lwd))
+    }
+    if(return.details) { # for the p1 app
+      # calculate expression shift
+      cat("expression shifts .")
+      # for individual cells
+      es <- as.matrix(epc@loadings[,c((i-1)+1,(i-1)+2)] %*% t(delta.pcs[,c((i-1)+1,(i-1)+2)]))
+      
+      cat(".");
+      if(show.grid.flow){
         gs <- epc@loadings[,c((i-1)+1,(i-1)+2)] %*% rbind(garrows[,3]-garrows[,1],garrows[,4]-garrows[,2])
-
-        # note: here we're using deltaE vector, which may be normalized a bit differently from the $current/$projectted that was used above
-        nd <- as.matrix(vel$deltaE)
-        if(scale=='log') {
-          nd <- (log10(abs(nd)+1)*sign(nd))
-        } else if(scale=='sqrt') {
-          nd <- (sqrt(abs(nd))*sign(nd))
-        }
-        cat(".");
-        # velocity for the grid (weight-averaged velocity vectors)
-        
-        
+      }
+      
+      # note: here we're using deltaE vector, which may be normalized a bit differently from the $current/$projected that was used above
+      nd <- as.matrix(vel$deltaE)
+      if(scale=='log') {
+        nd <- (log10(abs(nd)+1)*sign(nd))
+      } else if(scale=='sqrt') {
+        nd <- (sqrt(abs(nd))*sign(nd))
+      }
+      cat(".");
+      # velocity for the grid (weight-averaged velocity vectors)
+      
+      if(show.grid.flow){
         gv <- do.call(cbind,parallel::mclapply(gx,function(x) {
           # cell distances (rows:cells, columns: grid points)
           cd <- sqrt(outer(pos[,2],-gy,'+')^2 + (x-pos[,1])^2)
@@ -867,21 +873,18 @@ pca.velocity.plot <- function(vel,nPcs=4,cell.colors=NULL,scale='log',plot.cols=
             z <- nd %*% cw[,vg]
           } else { NULL }
         },mc.cores=n.cores,mc.preschedule=T))
-        cat(". done\n")
-        
-        return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos,epc=epc)))
       }
-      
-    } else {
-      # draw individual arrows
-      grid();
-      suppressWarnings(arrows(pos[,1],pos[,2],ppos[,1],ppos[,2],length=0.05,lwd=arrow.lwd))
+      cat(". done\n")
+      if(show.grid.flow){
+        return(invisible(list(garrows=garrows,arrows=as.matrix(ars),vel=nd,eshifts=es,gvel=gv,geshifts=gs,scale=scale,emb=pos,epc=epc)))
+      } else {
+        return(invisible(list(arrows=as.matrix(ars),vel=nd,eshifts=es,scale=scale,emb=pos,epc=epc)))
+      }
     }
   })
   cat("done\n")
   if(return.details) { return(vinfo) }
-  return(invisible(list(epc=epc,delta.pcs=delta.pcs)))
-  
+  return(invisible(list(epc=epc,delta.pcs=delta.pcs)))  
 }
 ##' Joint t-SNE visualization of the velocities by joint t-SNE embedding of both current and extraploated cell positions
 ##'
@@ -938,7 +941,7 @@ tSNE.velocity.plot <- function(vel,cell.colors=NULL,scale='log',do.par=T, delta.
   }
   if(!is.null(nPcs)) { # reduce using PCA first
     cat("pca ... ")
-    cent <- rowMeans(x0.log);
+    cent <- Matrix::rowMeans(x0.log);
     epc <- pcaMethods::pca(t(x0.log-cent),center=F,nPcs=ifelse(is.na(norm.nPcs),nPcs,norm.nPcs))
     x0.log <- epc@scores;
     x1.log <- t(x1.log - cent) %*% epc@loadings
@@ -1353,7 +1356,7 @@ show.velocity.on.embedding.eu <- function(emb,vel,n=30,embedding.knn=TRUE,cell.c
   
   if(!is.na(nPcs)) { # run PCA reduction on the em
     cat("reducing to",nPcs,"PCs ... ")
-    epc.center <- rowMeans(em);
+    epc.center <- Matrix::rowMeans(em);
     epc <- pcaMethods::pca(t(em-epc.center),center=F,nPcs=nPcs);
     em <- t(epc@scores)
     emn <- t(t(emn - epc.center) %*% epc@loadings)

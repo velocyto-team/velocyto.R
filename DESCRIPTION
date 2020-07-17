@@ -7,6 +7,7 @@ Author: Peter Kharchenko
 Maintainer: Peter Kharchenko <peter_kharchenko@hms.harvard.edu>
 Description: Provides basic routines for estimation of gene-specific transcriptional derivatives and visualization of the resulting velocity patterns.
 License: GPL-3
+biocViews:
 Depends:
   Matrix
 Imports: Rcpp (>= 0.12.13),

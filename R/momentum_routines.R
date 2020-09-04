@@ -1099,7 +1099,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
   cat("transition probs ... ")
   tp <- exp(cc/corr.sigma)*emb.knn
   #diag(tp) <- 0; #  should we allow the self-corelation for scaling?
-  tp <- t(t(tp)/Matrix::colSums(tp)); # tp shows transition from a given column cell to different row cells
+  tp <- t(t(tp)/Matrix::colSums(tp, na.rm = T)); # tp shows transition from a given column cell to different row cells
   tp <- as(tp,'dgCMatrix')
   cat("done\n")
   if(!is.null(show.cell)) {
@@ -1109,9 +1109,9 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
     points(emb,pch=19,col=ac(val2col(tp[rownames(emb),show.cell],gradient.range.quantile=1),alpha=0.5))
     points(emb[show.cell,1],emb[show.cell,2],pch=3,cex=1,col=1)
     di <- t(t(emb)-emb[i,])
-    di <- di/sqrt(Matrix::rowSums(di^2))*arrow.scale; di[i,] <- 0;
-    dir <- Matrix::colSums(di*tp[,i]) 
-    dic <- Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0)); # relative to expected kNN center
+    di <- di/sqrt(Matrix::rowSums(di^2, na.rm = T))*arrow.scale; di[i,] <- 0;
+    dir <- Matrix::colSums(di*tp[,i], na.rm = T) 
+    dic <- Matrix::colSums(di*(tp[,i]>0)/sum(tp[,i]>0, na.rm = T), na.rm = T); # relative to expected kNN center
     dia <- dir-dic;
     #browser()
     suppressWarnings(arrows(emb[colnames(em)[i],1],emb[colnames(em)[i],2],emb[colnames(em)[i],1]+dic[1],emb[colnames(em)[i],2]+dic[2],length=0.05,lwd=1,col='blue'))
@@ -1125,12 +1125,12 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
     rownames(arsd) <- rownames(emb);
     
     if(expression.scaling) {
-      tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb));
+      tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb, na.rm = T));
       es <- as.matrix(em %*% tp) -as.matrix(em %*% as.matrix(tpb));
       # project velocity onto expression shift
       #pm <- as.matrix(t(vel$deltaE)/sqrt(colSums(vel$deltaE*vel$deltaE)))[colnames(es),] * (t(es)/sqrt(colSums(es*es)))
       #pl <- pmax(0,apply(pm,1,sum))
-      pl <- pmin(1,pmax(0,apply(as.matrix(vel$deltaE[,colnames(es)]) * es, 2, sum)/sqrt(colSums(es*es))))
+      pl <- pmin(1,pmax(0,apply(as.matrix(vel$deltaE[,colnames(es)]) * es, 2, sum, na.rm = T)/sqrt(colSums(es*es, na.rm = T))))
       
       
       arsd <- arsd * pl;
@@ -1148,8 +1148,8 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
 
     # set up a grid
     cat("grid estimates ... ")
-    rx <- range(c(range(ars$x0),range(ars$x1)))
-    ry <- range(c(range(ars$y0),range(ars$y1)))
+    rx <- range(c(range(ars$x0, na.rm = T),range(ars$x1, na.rm = T)))
+    ry <- range(c(range(ars$y0, na.rm = T),range(ars$y1, na.rm = T)))
     gx <- seq(rx[1],rx[2],length.out=grid.n)
     gy <- seq(ry[1],ry[2],length.out=grid.n)
     
@@ -1174,8 +1174,8 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       # calculate x and y delta expectations
       gw <- Matrix::colSums(cw)
       cws <- pmax(1,Matrix::colSums(cw));
-      gxd <- Matrix::colSums(cw*arsd$xd)/cws
-      gyd <- Matrix::colSums(cw*arsd$yd)/cws
+      gxd <- Matrix::colSums(cw*arsd$xd, na.rm = T)/cws
+      gyd <- Matrix::colSums(cw*arsd$yd, na.rm = T)/cws
       
       al <- sqrt(gxd^2+gyd^2);
       vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
@@ -1205,7 +1205,7 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
       scale.int <- switch(scale,'log'=2,'sqrt'=3,1)
       #es <- expectedExpressionShift(e=as.matrix(em),tp=tp,scale=scale.int,nthreads=n.cores); colnames(es) <- colnames(em); rownames(es) <- rownames(em);
       if(!expression.scaling) { #otherwise it has already been calculated
-        tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb));
+        tpb <- tp>0; tpb <- t(t(tpb)/colSums(tpb, na.rm = T));
         #es <- expectedExpressionShift(e=as.matrix(em %*% as.matrix(tpb)),tp=tp,scale=scale.int,nthreads=n.cores); colnames(es) <- colnames(em); rownames(es) <- rownames(em);
         es <- as.matrix(em %*% tp) -as.matrix(em %*% as.matrix(tpb));
       }
@@ -1219,8 +1219,8 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
         gw <- Matrix::colSums(cw)
         cws <- pmax(1,Matrix::colSums(cw));
         cw <- t(t(cw)/cws)
-        gxd <- Matrix::colSums(cw*arsd$xd)
-        gyd <- Matrix::colSums(cw*arsd$yd)
+        gxd <- Matrix::colSums(cw*arsd$xd, na.rm = T)
+        gyd <- Matrix::colSums(cw*arsd$yd, na.rm = T)
         al <- sqrt(gxd^2+gyd^2);
         vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
         if(any(vg)) {
@@ -1243,8 +1243,8 @@ show.velocity.on.embedding.cor <- function(emb,vel,n=100,cell.colors=NULL, corr.
         gw <- Matrix::colSums(cw)
         cws <- pmax(1,Matrix::colSums(cw));
         cw <- t(t(cw)/cws)
-        gxd <- Matrix::colSums(cw*arsd$xd)
-        gyd <- Matrix::colSums(cw*arsd$yd)
+        gxd <- Matrix::colSums(cw*arsd$xd, na.rm = T)
+        gyd <- Matrix::colSums(cw*arsd$yd, na.rm = T)
         al <- sqrt(gxd^2+gyd^2);
         vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
         if(any(vg)) {

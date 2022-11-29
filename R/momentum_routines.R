@@ -472,12 +472,12 @@ gene.relative.velocity.estimates <- function(emat,nmat,deltaT=1,smat=NULL,steady
 ##'  # base.df (here dat$base.df) is a gene information table.
 ##'  #   For SMART-seq2, it is part of the \code{\link{read.smartseq2.bams}} output.
 ##'  #   For droplet data, this info can be obtained \code{\link{}}
-##'  gvel <- global.velcoity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
+##'  gvel <- global.velocity.estimates(emat, nmat, rvel, dat$base.df, deltaT=1, kCells=5,
 ##'        kGenes = 15, kGenes.trim = 5, min.gene.cells = 0, min.gene.conuts = 500)
 ##'  
 ##' }
 ##' @export
-global.velcoity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,plot.model.fit=FALSE, n.cores=defaultNCores()) {
+global.velocity.estimates <- function(emat,nmat,vel,base.df,deltaT=1,smat=NULL,kGenes=15,kGenes.trim=5,smooth.kGenes=0,kCells=10,deltaT2=1,min.gene.conuts=100,min.gene.cells=20,min.intron.length=10^3.5,min.exon.length=10^2.7,top.global.pearson.deviance=3,cellKNN=NULL,cell.dist=NULL,fit.quantile=NULL, zero.offset=NULL, diagonal.quantiles=FALSE, m.pcount=5,plot.model.fit=FALSE, n.cores=defaultNCores()) {
 
   if(is.null(zero.offset)) zero.offset <- is.null(smat); # set zero offset to true unless we have smat data
   
